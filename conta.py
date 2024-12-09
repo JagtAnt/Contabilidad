@@ -8,9 +8,9 @@ cuentas = {}  # Diccionario para las cuentas T
 # Función para registrar una transacción
 def registrar_transaccion():
     print("\n--- Registrar Transacción ---")
-    fecha = input("Fecha (YYYY-MM-DD): ")
+    fecha = input("Fecha (AAAA-MM-DD): ")
     cuenta_debe = input("Cuenta (Debe): ")
-    cuenta_haber = input("Cuenta (Haber): ")
+    
     try:
         monto_debe = float(input("Monto (Debe): "))
         monto_haber = float(input("Monto (Haber): "))
@@ -21,12 +21,12 @@ def registrar_transaccion():
     cuenta_haber = input("Cuenta (Haber): ")
     descripcion = input("Descripción: ")
 
-    # Verificar que el débito y el crédito sean iguales
+    # Verificar que el debe y el haber sean iguales
     if monto_debe <= 0 or monto_haber <= 0:
         print("Error: Los montos de Debe y Haber deben ser positivos.")
         return
     if monto_debe != monto_haber:
-        print("Error: El monto del Débito y el Crédito deben ser iguales.")
+        print("Error: El monto de las cuentas Debe y Haber deben ser iguales.")
         return
 
     # Agregar al libro diario
