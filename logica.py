@@ -1,53 +1,43 @@
 libro_diario = []  # Lista para registrar las transacciones
-cuentas = {}  # Diccionario para las cuentas T
 
-
-def registrar_transaccion(fecha, cuenta_debe, monto_debe, cuenta_haber, monto_haber, descripcion):
+def registrar_transaccion(fecha, cuentas_debe, montos_debe, cuentas_haber, montos_haber, descripcion):
     """
-    Registra una transacción en el libro diario y actualiza las cuentas.
+    Registra una transacción con múltiples operaciones en el Debe y el Haber.
     """
-    # Verificar que el debe y el haber sean iguales
-    if monto_debe <= 0 or monto_haber <= 0:
-        return False
-    if monto_debe != monto_haber:
+    if not cuentas_debe or not cuentas_haber or not montos_debe or not montos_haber:
         return False
 
-    # Agregar al libro diario
+    total_debe = sum(montos_debe)
+    total_haber = sum(montos_haber)
+
+    # Verificar que los totales sean iguales
+    if total_debe != total_haber:
+        return False
+
+    # Registrar la transacción
     transaccion = {
         "fecha": fecha,
-        "cuenta_debe": cuenta_debe,
-        "monto_debe": monto_debe,
-        "cuenta_haber": cuenta_haber,
-        "monto_haber": monto_haber,
+        "cuentas_debe": cuentas_debe,
+        "montos_debe": montos_debe,
+        "cuentas_haber": cuentas_haber,
+        "montos_haber": montos_haber,
         "descripcion": descripcion,
     }
     libro_diario.append(transaccion)
-
-    # Actualizar las cuentas T
-    if cuenta_debe not in cuentas:
-        cuentas[cuenta_debe] = {"Debe": [], "Haber": []}
-    if cuenta_haber not in cuentas:
-        cuentas[cuenta_haber] = {"Debe": [], "Haber": []}
-
-    cuentas[cuenta_debe]["Debe"].append(monto_debe)
-    cuentas[cuenta_haber]["Haber"].append(monto_haber)
-
     return True
-
 
 def obtener_libro_diario():
     """
-    Retorna el libro diario con todas las transacciones registradas.
+    Retorna el libro diario completo.
     """
     return libro_diario
 
-
 def verificar_balance():
     """
-    Verifica si el balance contable está equilibrado.
+    Verifica si el libro diario está equilibrado.
     """
-    total_debe = sum(t["monto_debe"] for t in libro_diario)
-    total_haber = sum(t["monto_haber"] for t in libro_diario)
+    total_debe = sum(sum(t["montos_debe"]) for t in libro_diario)
+    total_haber = sum(sum(t["montos_haber"]) for t in libro_diario)
     return {
         "total_debe": total_debe,
         "total_haber": total_haber,
