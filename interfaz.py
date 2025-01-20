@@ -3,7 +3,7 @@ from PyQt5.QtWidgets import (
     QLineEdit, QDialog, QMessageBox, QLabel, QHBoxLayout
 )
 from PyQt5.QtGui import QFont
-from logica import registrar_transaccion, obtener_libro_diario, verificar_balance
+from logica import registrar_transaccion, obtener_libro_diario, verificar_balance, inicializar_base_datos
 
 
 class VentanaPrincipal(QMainWindow):
@@ -15,27 +15,29 @@ class VentanaPrincipal(QMainWindow):
         # Estilo general
         self.setStyleSheet("""
             QMainWindow {
-                background-color: #f5f5f5;
+                background-color: #f0f4f8;
             }
             QPushButton {
-                background-color: #4CAF50;
+                background-color: #0066cc;
                 color: white;
                 font-size: 16px;
-                padding: 10px;
+                padding: 10px 20px;
                 border-radius: 5px;
+                border: none;
             }
             QPushButton:hover {
-                background-color: #45a049;
+                background-color: #004a99;
             }
             QLineEdit {
-                border: 1px solid #ccc;
+                border: 1px solid #ddd;
                 border-radius: 4px;
                 padding: 8px;
                 font-size: 14px;
             }
             QLabel {
-                font-size: 16px;
+                font-size: 14px;
                 color: #333;
+                font-weight: bold;
             }
         """)
 
@@ -71,24 +73,26 @@ class VentanaPrincipal(QMainWindow):
                 background-color: #ffffff;
             }
             QPushButton {
-                background-color: #007BFF;
+                background-color: #0066cc;
                 color: white;
                 font-size: 14px;
                 padding: 8px;
                 border-radius: 5px;
+                border: none;
             }
             QPushButton:hover {
-                background-color: #0056b3;
+                background-color: #004a99;
             }
             QLineEdit {
-                border: 1px solid #ccc;
+                border: 1px solid #ddd;
                 border-radius: 4px;
                 padding: 8px;
                 font-size: 14px;
             }
             QLabel {
                 font-size: 14px;
-                color: #444;
+                color: #333;
+                font-weight: bold;
             }
         """)
 
@@ -194,9 +198,12 @@ class VentanaPrincipal(QMainWindow):
         QMessageBox.information(self, "Verificar Balance", texto)
 
 
-if __name__ == "__main__":
-    import sys
-    app = QApplication(sys.argv)
+def iniciar_interfaz():
+    """
+    Inicializa la interfaz de usuario.
+    """
+    inicializar_base_datos()
+    app = QApplication([])
     ventana = VentanaPrincipal()
     ventana.show()
-    sys.exit(app.exec_())
+    return app.exec_()
