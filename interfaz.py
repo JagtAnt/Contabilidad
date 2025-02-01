@@ -1,7 +1,8 @@
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget,
-    QLineEdit, QDialog, QMessageBox, QLabel, QHBoxLayout
+    QLineEdit, QDialog, QMessageBox, QLabel, QHBoxLayout, QDateEdit
 )
+from PyQt5.QtCore import QDate
 from PyQt5.QtGui import QFont
 from logica import registrar_transaccion, obtener_libro_diario, verificar_balance, inicializar_base_datos
 
@@ -100,8 +101,11 @@ class VentanaPrincipal(QMainWindow):
         self.campos_haber = []
 
         # Fecha
-        self.input_fecha = QLineEdit(self.formulario)
-        self.input_fecha.setPlaceholderText("Fecha (AAAA-MM-DD)")
+        self.input_fecha = QDateEdit(self.formulario)
+        self.input_fecha.setDate(QDate.currentDate())  # Establece la fecha actual por defecto
+        self.input_fecha.setCalendarPopup(True)  # Permite abrir un calendario para seleccionar la fecha
+        self.input_fecha.setDisplayFormat("yyyy-MM-dd")  # Formato de fecha
+        layout.addWidget(QLabel("Fecha:"))
         layout.addWidget(self.input_fecha)
 
         # Sección Debe
@@ -164,7 +168,7 @@ class VentanaPrincipal(QMainWindow):
     def guardar_transaccion(self):
         """Guarda la transacción ingresada."""
         try:
-            fecha = self.input_fecha.text()
+            fecha = self.input_fecha.date().toString("yyyy-MM-dd")  # Obtiene la fecha en formato AAAA-MM-DD
             cuentas_debe = [campo[0].text() for campo in self.campos_debe if campo[0].text()]
             montos_debe = [float(campo[1].text()) for campo in self.campos_debe if campo[1].text()]
             cuentas_haber = [campo[0].text() for campo in self.campos_haber if campo[0].text()]
