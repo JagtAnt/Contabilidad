@@ -1,10 +1,13 @@
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget,
-    QLineEdit, QDialog, QMessageBox, QLabel, QHBoxLayout, QDateEdit
+    QLineEdit, QDialog, QMessageBox, QLabel, QHBoxLayout, QDateEdit, QInputDialog
 )
 from PyQt5.QtCore import QDate
 from PyQt5.QtGui import QFont
-from logica import registrar_transaccion, obtener_libro_diario, verificar_balance, inicializar_base_datos,obtener_libro_mayor 
+from logica import (
+    registrar_transaccion, obtener_libro_diario, verificar_balance,
+    inicializar_base_datos, obtener_libro_mayor, generar_pdf_libro_diario
+)
 
 
 class VentanaPrincipal(QMainWindow):
@@ -54,21 +57,22 @@ class VentanaPrincipal(QMainWindow):
         btn_ver_libro_diario = QPushButton("Ver Libro Diario", self)
         btn_ver_libro_diario.clicked.connect(self.ver_libro_diario)
         layout.addWidget(btn_ver_libro_diario)
-#se agrego nuevo
 
         btn_ver_libro_mayor = QPushButton("Ver Libro Mayor", self)
         btn_ver_libro_mayor.clicked.connect(self.ver_libro_mayor)
         layout.addWidget(btn_ver_libro_mayor)
 
-
         btn_verificar_balance = QPushButton("Verificar Balance", self)
         btn_verificar_balance.clicked.connect(self.verificar_balance)
         layout.addWidget(btn_verificar_balance)
 
+        btn_generar_pdf = QPushButton("Generar PDF", self)
+        btn_generar_pdf.clicked.connect(self.generar_pdf)
+        layout.addWidget(btn_generar_pdf)
+
         # Configuración final
         contenedor.setLayout(layout)
         self.setCentralWidget(contenedor)
-
 
     def ver_libro_mayor(self):
         # Obtiene el libro mayor desde la base de datos
@@ -81,6 +85,7 @@ class VentanaPrincipal(QMainWindow):
         texto = "\n".join([f"{item['cuenta']}: {item['saldo']}" for item in libro_mayor])
         
         QMessageBox.information(self, "Libro Mayor", texto)
+
     def abrir_formulario_transaccion(self):
         """Abre un formulario para registrar una transacción."""
         self.formulario = QDialog()
@@ -218,6 +223,27 @@ class VentanaPrincipal(QMainWindow):
         )
         texto += "El balance está equilibrado." if balance["equilibrado"] else "El balance no está equilibrado."
         QMessageBox.information(self, "Verificar Balance", texto)
+
+    def generar_pdf(self):
+        """Genera un PDF con el libro diario."""
+        # Solicitar datos al usuario
+        nombre_empresa, ok = QInputDialog.getText(self, "Nombre de la Empresa", "Ingrese el nombre de la empresa:")
+        if not ok or not nombre_empresa:
+            QMessageBox.warning(self, "Error", "Debe ingresar el nombre de la empresa.")
+            return
+
+        # Obtener el libro diario
+        libro_diario = obtener_libro_diario()
+        if not libro_diario:
+            QMessageBox.warning(self, "Error", "No hay transacciones registradas.")
+            return
+
+        # Generar el PDF
+        try:
+            pdf_path = generar_pdf_libro_diario(nombre_empresa, libro_diario)
+            QMessageBox.information(self, "Éxito", f"PDF generado correctamente: {pdf_path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudo generar el PDF: {str(e)}")
 
 
 def iniciar_interfaz():

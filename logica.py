@@ -1,4 +1,8 @@
 import sqlite3
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 
 DB_PATH = "contabilidad.db"
 
@@ -29,7 +33,16 @@ def inicializar_base_datos():
             FOREIGN KEY (transaccion_id) REFERENCES transacciones(id)
         )
     """)
-      # Crear tabla para el libro mayor
+
+    # Crear tabla referencias_cuentas
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS referencias_cuentas (
+            cuenta TEXT PRIMARY KEY,
+            numero_referencia INTEGER NOT NULL
+        )
+    """)
+
+    # Crear tabla para el libro mayor
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS libro_mayor (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,6 +54,40 @@ def inicializar_base_datos():
 
     conn.commit()
     conn.close()
+
+def obtener_numero_referencia(cuenta):
+    """
+    Obtiene el número de referencia único para una cuenta.
+    Si la cuenta no existe, se le asigna un nuevo número de referencia.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    # Verificar si la cuenta ya tiene un número de referencia
+    cursor.execute("""
+        SELECT numero_referencia FROM referencias_cuentas WHERE cuenta = ?
+    """, (cuenta,))
+    resultado = cursor.fetchone()
+
+    if resultado:
+        numero_referencia = resultado[0]
+    else:
+        # Obtener el último número de referencia asignado
+        cursor.execute("""
+            SELECT MAX(numero_referencia) FROM referencias_cuentas
+        """)
+        ultimo_numero = cursor.fetchone()[0] or 0
+        numero_referencia = ultimo_numero + 1
+
+        # Asignar el nuevo número de referencia a la cuenta
+        cursor.execute("""
+            INSERT INTO referencias_cuentas (cuenta, numero_referencia)
+            VALUES (?, ?)
+        """, (cuenta, numero_referencia))
+        conn.commit()
+
+    conn.close()
+    return numero_referencia
 
 def registrar_transaccion(fecha, cuentas_debe, montos_debe, cuentas_haber, montos_haber, descripcion):
     """
@@ -69,6 +116,7 @@ def registrar_transaccion(fecha, cuentas_debe, montos_debe, cuentas_haber, monto
 
     # Insertar detalles de la transacción (Debe)
     for cuenta, monto in zip(cuentas_debe, montos_debe):
+        numero_referencia = obtener_numero_referencia(cuenta)
         cursor.execute("""
             INSERT INTO detalles_transacciones (transaccion_id, cuenta, monto, tipo)
             VALUES (?, ?, ?, 'Debe')
@@ -94,6 +142,7 @@ def registrar_transaccion(fecha, cuentas_debe, montos_debe, cuentas_haber, monto
 
     # Insertar detalles de la transacción (Haber)
     for cuenta, monto in zip(cuentas_haber, montos_haber):
+        numero_referencia = obtener_numero_referencia(cuenta)
         cursor.execute("""
             INSERT INTO detalles_transacciones (transaccion_id, cuenta, monto, tipo)
             VALUES (?, ?, ?, 'Haber')
@@ -120,7 +169,6 @@ def registrar_transaccion(fecha, cuentas_debe, montos_debe, cuentas_haber, monto
     conn.commit()
     conn.close()
     return True
-
 
 def obtener_libro_diario():
     """
@@ -192,7 +240,7 @@ def obtener_libro_mayor():
     """
     Obtiene las cuentas y los saldos registrados en el libro mayor desde la base de datos.
     """
-    conn = sqlite3.connect('contabilidad.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -202,3 +250,58 @@ def obtener_libro_mayor():
 
     conn.close()
     return [{'cuenta': cuenta, 'saldo': saldo} for cuenta, saldo in cuentas]
+
+def generar_pdf_libro_diario(nombre_empresa, libro_diario):
+    """
+    Genera un PDF con el libro diario.
+    """
+    try:
+        pdf_path = "libro_diario.pdf"
+        doc = SimpleDocTemplate(pdf_path, pagesize=letter)
+        elements = []
+
+        # Estilos
+        styles = getSampleStyleSheet()
+        elements.append(Paragraph(f"<b>Nombre de la Empresa:</b> {nombre_empresa}", styles["Normal"]))
+        elements.append(Spacer(1, 12))
+
+        # Crear la tabla
+        data = [["Fecha", "Operaciones", "N° Referencia", "Debe", "Haber", "Descripción"]]
+        for transaccion in libro_diario:
+            fecha = transaccion["fecha"]
+            descripcion = transaccion["descripcion"]
+            cuentas_debe = transaccion["cuentas_debe"]
+            montos_debe = transaccion["montos_debe"]
+            cuentas_haber = transaccion["cuentas_haber"]
+            montos_haber = transaccion["montos_haber"]
+
+            # Obtener números de referencia para las cuentas
+            referencias = {}
+            for cuenta in cuentas_debe + cuentas_haber:
+                referencias[cuenta] = obtener_numero_referencia(cuenta)
+
+            # Mostrar cuentas de Debe (activos) primero
+            for cuenta, monto in zip(cuentas_debe, montos_debe):
+                data.append([fecha, cuenta, referencias[cuenta], f"${monto:.2f}", "", descripcion])
+
+            # Mostrar cuentas de Haber (pasivos) después
+            for cuenta, monto in zip(cuentas_haber, montos_haber):
+                data.append([fecha, cuenta, referencias[cuenta], "", f"${monto:.2f}", descripcion])
+
+        table = Table(data)
+        table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+            ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
+            ("GRID", (0, 0), (-1, -1), 1, colors.black),
+        ]))
+
+        elements.append(table)
+        doc.build(elements)
+
+        return pdf_path
+    except Exception as e:
+        raise Exception(f"No se pudo generar el PDF: {str(e)}")
