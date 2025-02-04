@@ -251,9 +251,9 @@ def obtener_libro_mayor():
     conn.close()
     return [{'cuenta': cuenta, 'saldo': saldo} for cuenta, saldo in cuentas]
 
-def generar_pdf_libro_diario(nombre_empresa, libro_diario):
+def generar_pdf_libro_diario(nombre_empresa, libro_diario, tasa_dolar):
     """
-    Genera un PDF con el libro diario.
+    Genera un PDF con el libro diario, mostrando montos en Bs y USD.
     """
     try:
         pdf_path = "libro_diario.pdf"
@@ -263,6 +263,7 @@ def generar_pdf_libro_diario(nombre_empresa, libro_diario):
         # Estilos
         styles = getSampleStyleSheet()
         elements.append(Paragraph(f"<b>Nombre de la Empresa:</b> {nombre_empresa}", styles["Normal"]))
+        elements.append(Paragraph(f"<b>Tipo de cambio:</b> 1 USD = {tasa_dolar} Bs", styles["Normal"]))
         elements.append(Spacer(1, 12))
 
         # Crear la tabla
@@ -281,12 +282,28 @@ def generar_pdf_libro_diario(nombre_empresa, libro_diario):
                 referencias[cuenta] = obtener_numero_referencia(cuenta)
 
             # Mostrar cuentas de Debe (activos) primero
-            for cuenta, monto in zip(cuentas_debe, montos_debe):
-                data.append([fecha, cuenta, referencias[cuenta], f"${monto:.2f}", "", descripcion])
+            for cuenta, monto_bs in zip(cuentas_debe, montos_debe):
+                monto_usd = monto_bs / tasa_dolar if tasa_dolar != 0 else 0
+                data.append([
+                    fecha,
+                    cuenta,
+                    referencias[cuenta],
+                    f"Bs {monto_bs:.2f}\n(USD {monto_usd:.2f})",
+                    "",
+                    descripcion
+                ])
 
             # Mostrar cuentas de Haber (pasivos) después
-            for cuenta, monto in zip(cuentas_haber, montos_haber):
-                data.append([fecha, cuenta, referencias[cuenta], "", f"${monto:.2f}", descripcion])
+            for cuenta, monto_bs in zip(cuentas_haber, montos_haber):
+                monto_usd = monto_bs / tasa_dolar if tasa_dolar != 0 else 0
+                data.append([
+                    fecha,
+                    cuenta,
+                    referencias[cuenta],
+                    "",
+                    f"Bs {monto_bs:.2f}\n(USD {monto_usd:.2f})",
+                    descripcion
+                ])
 
         table = Table(data)
         table.setStyle(TableStyle([

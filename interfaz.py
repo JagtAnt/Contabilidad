@@ -225,11 +225,21 @@ class VentanaPrincipal(QMainWindow):
         QMessageBox.information(self, "Verificar Balance", texto)
 
     def generar_pdf(self):
-        """Genera un PDF con el libro diario."""
+        """Genera un PDF con el libro diario, incluyendo conversión a USD."""
         # Solicitar datos al usuario
         nombre_empresa, ok = QInputDialog.getText(self, "Nombre de la Empresa", "Ingrese el nombre de la empresa:")
         if not ok or not nombre_empresa:
             QMessageBox.warning(self, "Error", "Debe ingresar el nombre de la empresa.")
+            return
+
+        # Solicitar tipo de cambio del dólar
+        tasa_dolar, ok = QInputDialog.getDouble(
+            self, "Tipo de Cambio", 
+            "Ingrese el valor de 1 USD en Bs (Ejemplo: 36.50):",
+            min=0.01, max=100000, decimals=2
+        )
+        if not ok or tasa_dolar <= 0:
+            QMessageBox.warning(self, "Error", "Debe ingresar un tipo de cambio válido.")
             return
 
         # Obtener el libro diario
@@ -240,7 +250,7 @@ class VentanaPrincipal(QMainWindow):
 
         # Generar el PDF
         try:
-            pdf_path = generar_pdf_libro_diario(nombre_empresa, libro_diario)
+            pdf_path = generar_pdf_libro_diario(nombre_empresa, libro_diario, tasa_dolar)
             QMessageBox.information(self, "Éxito", f"PDF generado correctamente: {pdf_path}")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudo generar el PDF: {str(e)}")
