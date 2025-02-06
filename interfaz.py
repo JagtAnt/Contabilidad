@@ -235,7 +235,7 @@ class VentanaPrincipal(QMainWindow):
         # Solicitar tipo de cambio del dólar
         tasa_dolar, ok = QInputDialog.getDouble(
             self, "Tipo de Cambio", 
-            "Ingrese el valor de 1 USD en Bs (Ejemplo: 36.50):",
+            "Ingrese el valor de 1 USD en Bs:",
             min=0.01, max=100000, decimals=2
         )
         if not ok or tasa_dolar <= 0:

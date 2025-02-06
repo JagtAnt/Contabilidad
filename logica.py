@@ -55,12 +55,20 @@ def inicializar_base_datos():
     conn.commit()
     conn.close()
 
-def obtener_numero_referencia(cuenta):
+
+def obtener_numero_referencia(cuenta, conn=None):
     """
     Obtiene el número de referencia único para una cuenta.
     Si la cuenta no existe, se le asigna un nuevo número de referencia.
+    
+    Si se proporciona una conexión (conn), se utiliza esa; de lo contrario,
+    se crea una nueva conexión.
     """
-    conn = sqlite3.connect(DB_PATH)
+    cerrar_conexion = False
+    if conn is None:
+        conn = sqlite3.connect(DB_PATH)
+        cerrar_conexion = True
+
     cursor = conn.cursor()
 
     # Verificar si la cuenta ya tiene un número de referencia
@@ -84,10 +92,15 @@ def obtener_numero_referencia(cuenta):
             INSERT INTO referencias_cuentas (cuenta, numero_referencia)
             VALUES (?, ?)
         """, (cuenta, numero_referencia))
-        conn.commit()
+        # Si no se está usando la conexión externa, se hace commit
+        if cerrar_conexion:
+            conn.commit()
 
-    conn.close()
+    if cerrar_conexion:
+        conn.close()
+
     return numero_referencia
+
 
 def registrar_transaccion(fecha, cuentas_debe, montos_debe, cuentas_haber, montos_haber, descripcion):
     """
@@ -103,7 +116,7 @@ def registrar_transaccion(fecha, cuentas_debe, montos_debe, cuentas_haber, monto
     if total_debe != total_haber:
         return False
 
-    # Guardar la transacción en la base de datos
+    # Guardar la transacción en la base de datos utilizando una sola conexión
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
@@ -116,18 +129,19 @@ def registrar_transaccion(fecha, cuentas_debe, montos_debe, cuentas_haber, monto
 
     # Insertar detalles de la transacción (Debe)
     for cuenta, monto in zip(cuentas_debe, montos_debe):
-        numero_referencia = obtener_numero_referencia(cuenta)
+        # Reutilizamos la misma conexión al obtener el número de referencia.
+        numero_referencia = obtener_numero_referencia(cuenta, conn)
         cursor.execute("""
             INSERT INTO detalles_transacciones (transaccion_id, cuenta, monto, tipo)
             VALUES (?, ?, ?, 'Debe')
         """, (transaccion_id, cuenta, monto))
 
-        # Actualizar libro mayor (Cuenta debe)
+        # Actualizar libro mayor (Cuenta Debe)
         cursor.execute("""
             SELECT saldo FROM libro_mayor WHERE cuenta = ?
         """, (cuenta,))
         resultado = cursor.fetchone()
-        
+
         if resultado:
             saldo_actual = resultado[0]
             nuevo_saldo = saldo_actual + monto
@@ -142,18 +156,18 @@ def registrar_transaccion(fecha, cuentas_debe, montos_debe, cuentas_haber, monto
 
     # Insertar detalles de la transacción (Haber)
     for cuenta, monto in zip(cuentas_haber, montos_haber):
-        numero_referencia = obtener_numero_referencia(cuenta)
+        numero_referencia = obtener_numero_referencia(cuenta, conn)
         cursor.execute("""
             INSERT INTO detalles_transacciones (transaccion_id, cuenta, monto, tipo)
             VALUES (?, ?, ?, 'Haber')
         """, (transaccion_id, cuenta, monto))
 
-        # Actualizar libro mayor (Cuenta haber)
+        # Actualizar libro mayor (Cuenta Haber)
         cursor.execute("""
             SELECT saldo FROM libro_mayor WHERE cuenta = ?
         """, (cuenta,))
         resultado = cursor.fetchone()
-        
+
         if resultado:
             saldo_actual = resultado[0]
             nuevo_saldo = saldo_actual - monto
@@ -169,6 +183,7 @@ def registrar_transaccion(fecha, cuentas_debe, montos_debe, cuentas_haber, monto
     conn.commit()
     conn.close()
     return True
+
 
 def obtener_libro_diario():
     """
@@ -211,6 +226,7 @@ def obtener_libro_diario():
     conn.close()
     return libro_diario
 
+
 def verificar_balance():
     """
     Verifica si el libro diario está equilibrado.
@@ -236,6 +252,7 @@ def verificar_balance():
         "equilibrado": total_debe == total_haber,
     }
 
+
 def obtener_libro_mayor():
     """
     Obtiene las cuentas y los saldos registrados en el libro mayor desde la base de datos.
@@ -250,6 +267,7 @@ def obtener_libro_mayor():
 
     conn.close()
     return [{'cuenta': cuenta, 'saldo': saldo} for cuenta, saldo in cuentas]
+
 
 def generar_pdf_libro_diario(nombre_empresa, libro_diario, tasa_dolar):
     """
@@ -279,31 +297,60 @@ def generar_pdf_libro_diario(nombre_empresa, libro_diario, tasa_dolar):
             # Obtener números de referencia para las cuentas
             referencias = {}
             for cuenta in cuentas_debe + cuentas_haber:
+                # Aquí se crea una conexión nueva para cada consulta en el PDF;
+                # en este contexto no afecta el registro de la transacción.
                 referencias[cuenta] = obtener_numero_referencia(cuenta)
 
+            # Contar el número total de operaciones (Debe + Haber)
+            total_operaciones = len(cuentas_debe) + len(cuentas_haber)
+
             # Mostrar cuentas de Debe (activos) primero
-            for cuenta, monto_bs in zip(cuentas_debe, montos_debe):
+            for i, (cuenta, monto_bs) in enumerate(zip(cuentas_debe, montos_debe)):
                 monto_usd = monto_bs / tasa_dolar if tasa_dolar != 0 else 0
-                data.append([
-                    fecha,
-                    cuenta,
-                    referencias[cuenta],
-                    f"Bs {monto_bs:.2f}\n(USD {monto_usd:.2f})",
-                    "",
-                    descripcion
-                ])
+                if i == 0:
+                    # Solo mostrar fecha y descripción en la primera fila de la transacción
+                    data.append([
+                        fecha,
+                        cuenta,
+                        referencias[cuenta],
+                        f"Bs {monto_bs:.2f}\n(USD {monto_usd:.2f})",
+                        "",
+                        descripcion
+                    ])
+                else:
+                    # Dejar vacíos los campos de fecha y descripción en las filas siguientes
+                    data.append([
+                        "",
+                        cuenta,
+                        referencias[cuenta],
+                        f"Bs {monto_bs:.2f}\n(USD {monto_usd:.2f})",
+                        "",
+                        ""
+                    ])
 
             # Mostrar cuentas de Haber (pasivos) después
-            for cuenta, monto_bs in zip(cuentas_haber, montos_haber):
+            for i, (cuenta, monto_bs) in enumerate(zip(cuentas_haber, montos_haber)):
                 monto_usd = monto_bs / tasa_dolar if tasa_dolar != 0 else 0
-                data.append([
-                    fecha,
-                    cuenta,
-                    referencias[cuenta],
-                    "",
-                    f"Bs {monto_bs:.2f}\n(USD {monto_usd:.2f})",
-                    descripcion
-                ])
+                if i == 0 and not cuentas_debe:
+                    # Solo mostrar fecha y descripción en la primera fila de la transacción
+                    data.append([
+                        fecha,
+                        cuenta,
+                        referencias[cuenta],
+                        "",
+                        f"Bs {monto_bs:.2f}\n(USD {monto_usd:.2f})",
+                        descripcion
+                    ])
+                else:
+                    # Dejar vacíos los campos de fecha y descripción en las filas siguientes
+                    data.append([
+                        "",
+                        cuenta,
+                        referencias[cuenta],
+                        "",
+                        f"Bs {monto_bs:.2f}\n(USD {monto_usd:.2f})",
+                        ""
+                    ])
 
         table = Table(data)
         table.setStyle(TableStyle([
@@ -314,6 +361,10 @@ def generar_pdf_libro_diario(nombre_empresa, libro_diario, tasa_dolar):
             ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
             ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
             ("GRID", (0, 0), (-1, -1), 1, colors.black),
+            # NOTA: La combinación de celdas (SPAN) se debe ajustar según la cantidad de filas.
+            # Las siguientes líneas son un ejemplo y pueden necesitar ajustes.
+            # ("SPAN", (0, 1), (0, total_operaciones)),
+            # ("SPAN", (5, 1), (5, total_operaciones)),
         ]))
 
         elements.append(table)
