@@ -1,8 +1,10 @@
 import sqlite3
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle  # Se añade ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.enums import TA_CENTER, TA_LEFT  # Se importan ambas constantes de alineación
+from datetime import datetime
 
 DB_PATH = "contabilidad.db"
 
@@ -60,9 +62,6 @@ def obtener_numero_referencia(cuenta, conn=None):
     """
     Obtiene el número de referencia único para una cuenta.
     Si la cuenta no existe, se le asigna un nuevo número de referencia.
-    
-    Si se proporciona una conexión (conn), se utiliza esa; de lo contrario,
-    se crea una nueva conexión.
     """
     cerrar_conexion = False
     if conn is None:
@@ -92,7 +91,6 @@ def obtener_numero_referencia(cuenta, conn=None):
             INSERT INTO referencias_cuentas (cuenta, numero_referencia)
             VALUES (?, ?)
         """, (cuenta, numero_referencia))
-        # Si no se está usando la conexión externa, se hace commit
         if cerrar_conexion:
             conn.commit()
 
@@ -116,7 +114,6 @@ def registrar_transaccion(fecha, cuentas_debe, montos_debe, cuentas_haber, monto
     if total_debe != total_haber:
         return False
 
-    # Guardar la transacción en la base de datos utilizando una sola conexión
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
@@ -129,7 +126,6 @@ def registrar_transaccion(fecha, cuentas_debe, montos_debe, cuentas_haber, monto
 
     # Insertar detalles de la transacción (Debe)
     for cuenta, monto in zip(cuentas_debe, montos_debe):
-        # Reutilizamos la misma conexión al obtener el número de referencia.
         numero_referencia = obtener_numero_referencia(cuenta, conn)
         cursor.execute("""
             INSERT INTO detalles_transacciones (transaccion_id, cuenta, monto, tipo)
@@ -185,24 +181,35 @@ def registrar_transaccion(fecha, cuentas_debe, montos_debe, cuentas_haber, monto
     return True
 
 
-def obtener_libro_diario():
+def obtener_libro_diario(fecha_inicio=None, fecha_fin=None):
     """
-    Retorna todas las transacciones registradas en la base de datos.
+    Retorna todas las transacciones registradas en la base de datos dentro de un rango de fechas.
     """
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    # Obtener transacciones principales
-    cursor.execute("""
+    query = """
         SELECT id, fecha, descripcion FROM transacciones
-    """)
+    """
+    params = []
+
+    if fecha_inicio and fecha_fin:
+        query += " WHERE fecha BETWEEN ? AND ?"
+        params.extend([fecha_inicio, fecha_fin])
+    elif fecha_inicio:
+        query += " WHERE fecha >= ?"
+        params.append(fecha_inicio)
+    elif fecha_fin:
+        query += " WHERE fecha <= ?"
+        params.append(fecha_fin)
+
+    cursor.execute(query, params)
     transacciones = cursor.fetchall()
 
     libro_diario = []
     for transaccion in transacciones:
         transaccion_id, fecha, descripcion = transaccion
 
-        # Obtener detalles de la transacción
         cursor.execute("""
             SELECT cuenta, monto, tipo FROM detalles_transacciones
             WHERE transaccion_id = ?
@@ -234,7 +241,6 @@ def verificar_balance():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    # Calcular totales de Debe y Haber
     cursor.execute("""
         SELECT SUM(monto) FROM detalles_transacciones WHERE tipo = 'Debe'
     """)
@@ -269,23 +275,43 @@ def obtener_libro_mayor():
     return [{'cuenta': cuenta, 'saldo': saldo} for cuenta, saldo in cuentas]
 
 
-def generar_pdf_libro_diario(nombre_empresa, libro_diario, tasa_dolar):
+def generar_pdf_libro_diario(nombre_empresa, libro_diario, tasa_dolar, fecha_inicio, fecha_fin):
     """
-    Genera un PDF con el libro diario, mostrando montos en Bs y USD.
+    Genera un PDF con el libro diario, mostrando montos en Bs y USD,
+    e incluye en el encabezado: nombre de empresa, tipo de cambio,
+    período de fechas y la fecha de emisión.
     """
     try:
         pdf_path = "libro_diario.pdf"
         doc = SimpleDocTemplate(pdf_path, pagesize=letter)
         elements = []
 
-        # Estilos
+        # Estilos base
         styles = getSampleStyleSheet()
-        elements.append(Paragraph(f"<b>Nombre de la Empresa:</b> {nombre_empresa}", styles["Normal"]))
-        elements.append(Paragraph(f"<b>Tipo de cambio:</b> 1 USD = {tasa_dolar} Bs", styles["Normal"]))
+        header_style = ParagraphStyle("header_style",
+                                      parent=styles["Normal"],
+                                      alignment=TA_LEFT)
+
+        # Obtener la fecha y hora de emisión
+        fecha_emision = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # Construir el encabezado
+        header_text = (
+            f"<b>Nombre de la Empresa:</b> {nombre_empresa}<br/>"
+            f"<b>Tipo de cambio:</b> 1 USD = {tasa_dolar} Bs<br/>"
+            f"<b>Periodo:</b> {fecha_inicio} a {fecha_fin}<br/>"
+            f"<b>Fecha de emisión:</b> {fecha_emision}"
+        )
+        elements.append(Paragraph(header_text, header_style))
         elements.append(Spacer(1, 12))
 
-        # Crear la tabla
-        data = [["Fecha", "Operaciones", "N° Referencia", "Debe", "Haber", "Descripción"]]
+        # Estilo para la descripción (dentro de la tabla)
+        style_desc = styles["Normal"]
+        style_desc.alignment = TA_CENTER
+        style_desc.wordWrap = 'CJK'
+
+        # Creación de la tabla (cuadro)
+        data = [["Fecha", "Operaciones", "N° Ref", "Debe", "Haber", "Descripción"]]
         for transaccion in libro_diario:
             fecha = transaccion["fecha"]
             descripcion = transaccion["descripcion"]
@@ -297,28 +323,24 @@ def generar_pdf_libro_diario(nombre_empresa, libro_diario, tasa_dolar):
             # Obtener números de referencia para las cuentas
             referencias = {}
             for cuenta in cuentas_debe + cuentas_haber:
-                # Aquí se crea una conexión nueva para cada consulta en el PDF;
-                # en este contexto no afecta el registro de la transacción.
                 referencias[cuenta] = obtener_numero_referencia(cuenta)
 
-            # Contar el número total de operaciones (Debe + Haber)
+            # Calcular total de operaciones (para uso en el estilo de la tabla)
             total_operaciones = len(cuentas_debe) + len(cuentas_haber)
 
-            # Mostrar cuentas de Debe (activos) primero
+            # Agregar filas para las cuentas Debe
             for i, (cuenta, monto_bs) in enumerate(zip(cuentas_debe, montos_debe)):
                 monto_usd = monto_bs / tasa_dolar if tasa_dolar != 0 else 0
                 if i == 0:
-                    # Solo mostrar fecha y descripción en la primera fila de la transacción
                     data.append([
                         fecha,
                         cuenta,
                         referencias[cuenta],
                         f"Bs {monto_bs:.2f}\n(USD {monto_usd:.2f})",
                         "",
-                        descripcion
+                        Paragraph(descripcion, style_desc)
                     ])
                 else:
-                    # Dejar vacíos los campos de fecha y descripción en las filas siguientes
                     data.append([
                         "",
                         cuenta,
@@ -328,21 +350,19 @@ def generar_pdf_libro_diario(nombre_empresa, libro_diario, tasa_dolar):
                         ""
                     ])
 
-            # Mostrar cuentas de Haber (pasivos) después
+            # Agregar filas para las cuentas Haber
             for i, (cuenta, monto_bs) in enumerate(zip(cuentas_haber, montos_haber)):
                 monto_usd = monto_bs / tasa_dolar if tasa_dolar != 0 else 0
                 if i == 0 and not cuentas_debe:
-                    # Solo mostrar fecha y descripción en la primera fila de la transacción
                     data.append([
                         fecha,
                         cuenta,
                         referencias[cuenta],
                         "",
                         f"Bs {monto_bs:.2f}\n(USD {monto_usd:.2f})",
-                        descripcion
+                        Paragraph(descripcion, style_desc)
                     ])
                 else:
-                    # Dejar vacíos los campos de fecha y descripción en las filas siguientes
                     data.append([
                         "",
                         cuenta,
@@ -352,7 +372,8 @@ def generar_pdf_libro_diario(nombre_empresa, libro_diario, tasa_dolar):
                         ""
                     ])
 
-        table = Table(data)
+        # Crear la tabla con anchos personalizados
+        table = Table(data, colWidths=[60, 100, 60, 80, 80, 200])
         table.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
@@ -361,12 +382,10 @@ def generar_pdf_libro_diario(nombre_empresa, libro_diario, tasa_dolar):
             ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
             ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
             ("GRID", (0, 0), (-1, -1), 1, colors.black),
-            # NOTA: La combinación de celdas (SPAN) se debe ajustar según la cantidad de filas.
-            # Las siguientes líneas son un ejemplo y pueden necesitar ajustes.
-            # ("SPAN", (0, 1), (0, total_operaciones)),
-            # ("SPAN", (5, 1), (5, total_operaciones)),
+            ("ALIGN", (5, 0), (5, -1), "CENTER"),
+            ("VALIGN", (5, 1), (5, -1), "MIDDLE"),
+            ("SPAN", (5, 1), (5, total_operaciones)),
         ]))
-
         elements.append(table)
         doc.build(elements)
 

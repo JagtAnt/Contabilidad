@@ -16,7 +16,6 @@ class VentanaPrincipal(QMainWindow):
         self.setWindowTitle("Sistema de Contabilidad")
         self.setGeometry(100, 100, 500, 400)
 
-        # Estilo general
         self.setStyleSheet("""
             QMainWindow {
                 background-color: #f0f4f8;
@@ -45,11 +44,9 @@ class VentanaPrincipal(QMainWindow):
             }
         """)
 
-        # Contenedor principal
         contenedor = QWidget()
         layout = QVBoxLayout()
 
-        # Botones
         btn_registrar_transaccion = QPushButton("Registrar Transacción", self)
         btn_registrar_transaccion.clicked.connect(self.abrir_formulario_transaccion)
         layout.addWidget(btn_registrar_transaccion)
@@ -66,28 +63,23 @@ class VentanaPrincipal(QMainWindow):
         btn_verificar_balance.clicked.connect(self.verificar_balance)
         layout.addWidget(btn_verificar_balance)
 
-        btn_generar_pdf = QPushButton("Generar PDF", self)
+        btn_generar_pdf = QPushButton("Generar PDF (Libro diario)", self)
         btn_generar_pdf.clicked.connect(self.generar_pdf)
         layout.addWidget(btn_generar_pdf)
 
-        # Configuración final
         contenedor.setLayout(layout)
         self.setCentralWidget(contenedor)
 
     def ver_libro_mayor(self):
-        # Obtiene el libro mayor desde la base de datos
         libro_mayor = obtener_libro_mayor()
-        
         if not libro_mayor:
             QMessageBox.information(self, "Libro Mayor", "No hay cuentas registradas en el libro mayor.")
             return
-        
+
         texto = "\n".join([f"{item['cuenta']}: {item['saldo']}" for item in libro_mayor])
-        
         QMessageBox.information(self, "Libro Mayor", texto)
 
     def abrir_formulario_transaccion(self):
-        """Abre un formulario para registrar una transacción."""
         self.formulario = QDialog()
         self.formulario.setWindowTitle("Registrar Transacción")
         layout = QVBoxLayout()
@@ -123,15 +115,13 @@ class VentanaPrincipal(QMainWindow):
         self.campos_debe = []
         self.campos_haber = []
 
-        # Fecha
         self.input_fecha = QDateEdit(self.formulario)
-        self.input_fecha.setDate(QDate.currentDate())  # Establece la fecha actual por defecto
-        self.input_fecha.setCalendarPopup(True)  # Permite abrir un calendario para seleccionar la fecha
-        self.input_fecha.setDisplayFormat("yyyy-MM-dd")  # Formato de fecha
+        self.input_fecha.setDate(QDate.currentDate())
+        self.input_fecha.setCalendarPopup(True)
+        self.input_fecha.setDisplayFormat("yyyy-MM-dd")
         layout.addWidget(QLabel("Fecha:"))
         layout.addWidget(self.input_fecha)
 
-        # Sección Debe
         layout.addWidget(QLabel("Cuentas y Montos (Debe):"))
         self.seccion_debe = QVBoxLayout()
         layout.addLayout(self.seccion_debe)
@@ -141,7 +131,6 @@ class VentanaPrincipal(QMainWindow):
         btn_agregar_debe.clicked.connect(self.agregar_campo_debe)
         layout.addWidget(btn_agregar_debe)
 
-        # Sección Haber
         layout.addWidget(QLabel("Cuentas y Montos (Haber):"))
         self.seccion_haber = QVBoxLayout()
         layout.addLayout(self.seccion_haber)
@@ -151,12 +140,10 @@ class VentanaPrincipal(QMainWindow):
         btn_agregar_haber.clicked.connect(self.agregar_campo_haber)
         layout.addWidget(btn_agregar_haber)
 
-        # Descripción
         self.input_descripcion = QLineEdit(self.formulario)
         self.input_descripcion.setPlaceholderText("Descripción")
         layout.addWidget(self.input_descripcion)
 
-        # Botón Guardar
         btn_guardar = QPushButton("Guardar Transacción", self.formulario)
         btn_guardar.clicked.connect(self.guardar_transaccion)
         layout.addWidget(btn_guardar)
@@ -165,7 +152,6 @@ class VentanaPrincipal(QMainWindow):
         self.formulario.exec_()
 
     def agregar_campo_debe(self):
-        """Añade un nuevo campo para Debe."""
         layout = QHBoxLayout()
         cuenta = QLineEdit()
         cuenta.setPlaceholderText("Cuenta (Debe)")
@@ -177,7 +163,6 @@ class VentanaPrincipal(QMainWindow):
         self.seccion_debe.addLayout(layout)
 
     def agregar_campo_haber(self):
-        """Añade un nuevo campo para Haber."""
         layout = QHBoxLayout()
         cuenta = QLineEdit()
         cuenta.setPlaceholderText("Cuenta (Haber)")
@@ -189,9 +174,8 @@ class VentanaPrincipal(QMainWindow):
         self.seccion_haber.addLayout(layout)
 
     def guardar_transaccion(self):
-        """Guarda la transacción ingresada."""
         try:
-            fecha = self.input_fecha.date().toString("yyyy-MM-dd")  # Obtiene la fecha en formato AAAA-MM-DD
+            fecha = self.input_fecha.date().toString("yyyy-MM-dd")
             cuentas_debe = [campo[0].text() for campo in self.campos_debe if campo[0].text()]
             montos_debe = [float(campo[1].text()) for campo in self.campos_debe if campo[1].text()]
             cuentas_haber = [campo[0].text() for campo in self.campos_haber if campo[0].text()]
@@ -225,14 +209,11 @@ class VentanaPrincipal(QMainWindow):
         QMessageBox.information(self, "Verificar Balance", texto)
 
     def generar_pdf(self):
-        """Genera un PDF con el libro diario, incluyendo conversión a USD."""
-        # Solicitar datos al usuario
         nombre_empresa, ok = QInputDialog.getText(self, "Nombre de la Empresa", "Ingrese el nombre de la empresa:")
         if not ok or not nombre_empresa:
             QMessageBox.warning(self, "Error", "Debe ingresar el nombre de la empresa.")
             return
 
-        # Solicitar tipo de cambio del dólar
         tasa_dolar, ok = QInputDialog.getDouble(
             self, "Tipo de Cambio", 
             "Ingrese el valor de 1 USD en Bs:",
@@ -242,18 +223,51 @@ class VentanaPrincipal(QMainWindow):
             QMessageBox.warning(self, "Error", "Debe ingresar un tipo de cambio válido.")
             return
 
-        # Obtener el libro diario
-        libro_diario = obtener_libro_diario()
-        if not libro_diario:
-            QMessageBox.warning(self, "Error", "No hay transacciones registradas.")
-            return
+        # Diálogo para seleccionar el rango de fechas
+        dialog_fechas = QDialog(self)
+        dialog_fechas.setWindowTitle("Seleccionar Rango de Fechas")
+        layout_fechas = QVBoxLayout()
 
-        # Generar el PDF
-        try:
-            pdf_path = generar_pdf_libro_diario(nombre_empresa, libro_diario, tasa_dolar)
-            QMessageBox.information(self, "Éxito", f"PDF generado correctamente: {pdf_path}")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"No se pudo generar el PDF: {str(e)}")
+        lbl_fecha_inicio = QLabel("Fecha de Inicio:")
+        self.input_fecha_inicio = QDateEdit(dialog_fechas)
+        self.input_fecha_inicio.setDate(QDate.currentDate())
+        self.input_fecha_inicio.setCalendarPopup(True)
+        self.input_fecha_inicio.setDisplayFormat("yyyy-MM-dd")
+        layout_fechas.addWidget(lbl_fecha_inicio)
+        layout_fechas.addWidget(self.input_fecha_inicio)
+
+        lbl_fecha_fin = QLabel("Fecha Final:")
+        self.input_fecha_fin = QDateEdit(dialog_fechas)
+        self.input_fecha_fin.setDate(QDate.currentDate())
+        self.input_fecha_fin.setCalendarPopup(True)
+        self.input_fecha_fin.setDisplayFormat("yyyy-MM-dd")
+        layout_fechas.addWidget(lbl_fecha_fin)
+        layout_fechas.addWidget(self.input_fecha_fin)
+
+        btn_confirmar = QPushButton("Confirmar", dialog_fechas)
+        btn_confirmar.clicked.connect(dialog_fechas.accept)
+        layout_fechas.addWidget(btn_confirmar)
+
+        dialog_fechas.setLayout(layout_fechas)
+
+        if dialog_fechas.exec_() == QDialog.Accepted:
+            fecha_inicio = self.input_fecha_inicio.date().toString("yyyy-MM-dd")
+            fecha_fin = self.input_fecha_fin.date().toString("yyyy-MM-dd")
+
+            if self.input_fecha_inicio.date() > self.input_fecha_fin.date():
+                QMessageBox.warning(self, "Error", "La fecha de inicio debe ser menor o igual a la fecha de fin.")
+                return
+
+            libro_diario = obtener_libro_diario(fecha_inicio, fecha_fin)
+            if not libro_diario:
+                QMessageBox.warning(self, "Error", "No hay transacciones registradas en el rango de fechas seleccionado.")
+                return
+
+            try:
+                pdf_path = generar_pdf_libro_diario(nombre_empresa, libro_diario, tasa_dolar, fecha_inicio, fecha_fin)
+                QMessageBox.information(self, "Éxito", f"PDF generado correctamente: {pdf_path}")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"No se pudo generar el PDF: {str(e)}")
 
 
 def iniciar_interfaz():
