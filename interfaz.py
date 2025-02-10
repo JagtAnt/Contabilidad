@@ -3,8 +3,8 @@ from PyQt5.QtWidgets import (
     QLineEdit, QDialog, QMessageBox, QLabel, QHBoxLayout, QDateEdit, 
     QInputDialog, QStackedWidget, QTableWidget, QTableWidgetItem, QHeaderView
 )
-from PyQt5.QtCore import QDate
-from PyQt5.QtGui import QFont
+from PyQt5.QtCore import QDate, Qt
+from PyQt5.QtGui import QFont, QIcon, QPixmap
 from logica import (
     registrar_transaccion, obtener_libro_diario, verificar_balance,
     inicializar_base_datos, obtener_libro_mayor, generar_pdf_libro_diario
@@ -16,6 +16,7 @@ class VentanaPrincipal(QMainWindow):
         super().__init__()
         self.setWindowTitle("Sistema de Contabilidad")
         self.setGeometry(100, 100, 800, 600)
+        self.setWindowIcon(QIcon('imagen/icono.png'))
 
         # Estilos CSS para la interfaz
         self.setStyleSheet("""
@@ -54,6 +55,7 @@ class VentanaPrincipal(QMainWindow):
                 padding: 8px;
                 font-weight: bold;
             }
+                       
         """)
 
         # Crear un contenedor principal con diseño horizontal
@@ -62,6 +64,12 @@ class VentanaPrincipal(QMainWindow):
 
         # Crear la barra lateral
         barra_lateral = QVBoxLayout()
+
+        imagen_label = QLabel(self)
+        pixmap = QPixmap('imagen/imagen.jpg').scaled(100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        imagen_label.setPixmap(pixmap)
+        imagen_label.setAlignment(Qt.AlignCenter)
+        barra_lateral.addWidget(imagen_label)
 
         # Botones de la barra lateral
         btn_registrar_transaccion = QPushButton("Registrar Transacción", self)
