@@ -392,3 +392,97 @@ def generar_pdf_libro_diario(nombre_empresa, libro_diario, tasa_dolar, fecha_ini
         return pdf_path
     except Exception as e:
         raise Exception(f"No se pudo generar el PDF: {str(e)}")
+    
+
+
+def generar_pdf_balance_saldos(nombre_empresa, tasa_dolar, fecha_inicio, fecha_fin):
+    """
+    Genera un PDF con el balance de saldos, mostrando montos en Bs y USD,
+    e incluye en el encabezado: nombre de empresa, tipo de cambio,
+    período de fechas y la fecha de emisión.
+    """
+    try:
+        pdf_path = "balance_saldos.pdf"
+        doc = SimpleDocTemplate(pdf_path, pagesize=letter)
+        elements = []
+
+        # Estilos base
+        styles = getSampleStyleSheet()
+        header_style = ParagraphStyle("header_style",
+                                      parent=styles["Normal"],
+                                      alignment=TA_LEFT)
+
+        # Obtener la fecha y hora de emisión
+        fecha_emision = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # Construir el encabezado
+        header_text = (
+            f"<b>Nombre de la Empresa:</b> {nombre_empresa}<br/>"
+            f"<b>Tipo de cambio:</b> 1 USD = {tasa_dolar} Bs<br/>"
+            f"<b>Periodo:</b> {fecha_inicio} a {fecha_fin}<br/>"
+            f"<b>Fecha de emisión:</b> {fecha_emision}"
+        )
+        elements.append(Paragraph(header_text, header_style))
+        elements.append(Spacer(1, 12))
+
+        # Obtener el balance de saldos desde la base de datos
+        libro_mayor = obtener_libro_mayor()
+
+        # Creación de la tabla (cuadro) para el balance de saldos
+        data = [["Cuenta", "Saldo (Bs)", "Saldo (USD)"]]
+        for cuenta in libro_mayor:
+            nombre_cuenta = cuenta["cuenta"]
+            saldo_bs = cuenta["saldo"]
+            saldo_usd = saldo_bs / tasa_dolar if tasa_dolar != 0 else 0
+
+            data.append([
+                nombre_cuenta,
+                f"Bs {saldo_bs:.2f}",
+                f"USD {saldo_usd:.2f}"
+            ])
+
+        # Crear la tabla con anchos personalizados
+        table = Table(data, colWidths=[200, 100, 100])
+        table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+            ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
+            ("GRID", (0, 0), (-1, -1), 1, colors.black),
+        ]))
+        elements.append(table)
+        doc.build(elements)
+
+        return pdf_path
+    except Exception as e:
+        raise Exception(f"No se pudo generar el PDF: {str(e)}")
+
+
+
+def borrar_transacciones():
+    """
+    Borra todas las transacciones y sus detalles de la base de datos.
+    También reinicia el libro mayor.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    try:
+        # Borrar todas las transacciones
+        cursor.execute("DELETE FROM transacciones")
+        # Borrar todos los detalles de las transacciones
+        cursor.execute("DELETE FROM detalles_transacciones")
+        # Reiniciar el libro mayor
+        cursor.execute("DELETE FROM libro_mayor")
+        # Reiniciar las referencias de cuentas (opcional, dependiendo de tu lógica)
+        cursor.execute("DELETE FROM referencias_cuentas")
+
+        conn.commit()
+        return True
+    except Exception as e:
+        conn.rollback()
+        raise Exception(f"No se pudieron borrar las transacciones: {str(e)}")
+    finally:
+        conn.close()
