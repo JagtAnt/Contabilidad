@@ -7,7 +7,7 @@ from PyQt5.QtCore import QDate
 from PyQt5.QtGui import QFont
 from logica import (
     registrar_transaccion, obtener_libro_diario, verificar_balance,
-    inicializar_base_datos, obtener_libro_mayor, generar_pdf_libro_diario, generar_pdf_balance_saldos, borrar_transacciones
+    inicializar_base_datos, obtener_libro_mayor, generar_pdf_libro_diario, generar_pdf_balance_saldos
 )
 
 
@@ -89,10 +89,6 @@ class VentanaPrincipal(QMainWindow):
         btn_generar_balance_saldos.clicked.connect(self.generar_balance_saldos)
         barra_lateral.addWidget(btn_generar_balance_saldos)
 
-         # Nuevo botón para borrar transacciones
-        btn_borrar_transacciones = QPushButton("Borrar Transacciones", self)
-        btn_borrar_transacciones.clicked.connect(self.borrar_transacciones)
-        barra_lateral.addWidget(btn_borrar_transacciones)
 
         # Espaciador para empujar los botones hacia arriba
         barra_lateral.addStretch()
@@ -436,24 +432,7 @@ class VentanaPrincipal(QMainWindow):
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"No se pudo generar el PDF: {str(e)}")
 
-    def borrar_transacciones(self):
-        """Elimina todas las transacciones de la base de datos."""
-        confirmacion = QMessageBox.question(
-            self,
-            "Confirmar Borrado",
-            "¿Está seguro de que desea borrar todas las transacciones? Esta acción no se puede deshacer.",
-            QMessageBox.Yes | QMessageBox.No,
-        )
-
-        if confirmacion == QMessageBox.Yes:
-            try:
-                if borrar_transacciones():
-                    QMessageBox.information(self, "Éxito", "Todas las transacciones han sido borradas.")
-                else:
-                    QMessageBox.warning(self, "Error", "No se pudieron borrar las transacciones.")
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"No se pudieron borrar las transacciones: {str(e)}")
-
+    
 
 def iniciar_interfaz():
     """
