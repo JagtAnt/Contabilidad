@@ -1,6 +1,7 @@
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget,
-    QLineEdit, QDialog, QMessageBox, QLabel, QHBoxLayout, QDateEdit, QInputDialog
+    QLineEdit, QDialog, QMessageBox, QLabel, QHBoxLayout, QDateEdit, 
+    QInputDialog, QStackedWidget, QTableWidget, QTableWidgetItem, QHeaderView
 )
 from PyQt5.QtCore import QDate
 from PyQt5.QtGui import QFont
@@ -14,8 +15,9 @@ class VentanaPrincipal(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Sistema de Contabilidad")
-        self.setGeometry(100, 100, 500, 400)
+        self.setGeometry(100, 100, 800, 600)
 
+        # Estilos CSS para la interfaz
         self.setStyleSheet("""
             QMainWindow {
                 background-color: #f0f4f8;
@@ -42,80 +44,75 @@ class VentanaPrincipal(QMainWindow):
                 color: #333;
                 font-weight: bold;
             }
-        """)
-
-        contenedor = QWidget()
-        layout = QVBoxLayout()
-
-        btn_registrar_transaccion = QPushButton("Registrar Transacción", self)
-        btn_registrar_transaccion.clicked.connect(self.abrir_formulario_transaccion)
-        layout.addWidget(btn_registrar_transaccion)
-
-        btn_ver_libro_diario = QPushButton("Ver Libro Diario", self)
-        btn_ver_libro_diario.clicked.connect(self.ver_libro_diario)
-        layout.addWidget(btn_ver_libro_diario)
-
-        btn_ver_libro_mayor = QPushButton("Ver Libro Mayor", self)
-        btn_ver_libro_mayor.clicked.connect(self.ver_libro_mayor)
-        layout.addWidget(btn_ver_libro_mayor)
-
-        btn_verificar_balance = QPushButton("Verificar Balance", self)
-        btn_verificar_balance.clicked.connect(self.verificar_balance)
-        layout.addWidget(btn_verificar_balance)
-
-        btn_generar_pdf = QPushButton("Generar PDF (Libro diario)", self)
-        btn_generar_pdf.clicked.connect(self.generar_pdf)
-        layout.addWidget(btn_generar_pdf)
-
-        contenedor.setLayout(layout)
-        self.setCentralWidget(contenedor)
-
-    def ver_libro_mayor(self):
-        libro_mayor = obtener_libro_mayor()
-        if not libro_mayor:
-            QMessageBox.information(self, "Libro Mayor", "No hay cuentas registradas en el libro mayor.")
-            return
-
-        texto = "\n".join([f"{item['cuenta']}: {item['saldo']}" for item in libro_mayor])
-        QMessageBox.information(self, "Libro Mayor", texto)
-
-    def abrir_formulario_transaccion(self):
-        self.formulario = QDialog()
-        self.formulario.setWindowTitle("Registrar Transacción")
-        layout = QVBoxLayout()
-
-        self.formulario.setStyleSheet("""
-            QDialog {
-                background-color: #ffffff;
+            QTableWidget {
+                font-size: 14px;
+                border: 1px solid #ddd;
             }
-            QPushButton {
+            QHeaderView::section {
                 background-color: #0066cc;
                 color: white;
-                font-size: 14px;
                 padding: 8px;
-                border-radius: 5px;
-                border: none;
-            }
-            QPushButton:hover {
-                background-color: #004a99;
-            }
-            QLineEdit {
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                padding: 8px;
-                font-size: 14px;
-            }
-            QLabel {
-                font-size: 14px;
-                color: #333;
                 font-weight: bold;
             }
         """)
 
+        # Crear un contenedor principal con diseño horizontal
+        contenedor_principal = QWidget()
+        layout_principal = QHBoxLayout()
+
+        # Crear la barra lateral
+        barra_lateral = QVBoxLayout()
+
+        # Botones de la barra lateral
+        btn_registrar_transaccion = QPushButton("Registrar Transacción", self)
+        btn_registrar_transaccion.clicked.connect(self.abrir_formulario_transaccion)
+        barra_lateral.addWidget(btn_registrar_transaccion)
+
+        btn_ver_libro_diario = QPushButton("Ver Libro Diario", self)
+        btn_ver_libro_diario.clicked.connect(self.ver_libro_diario)
+        barra_lateral.addWidget(btn_ver_libro_diario)
+
+        btn_ver_libro_mayor = QPushButton("Ver Libro Mayor", self)
+        btn_ver_libro_mayor.clicked.connect(self.ver_libro_mayor)
+        barra_lateral.addWidget(btn_ver_libro_mayor)
+
+        btn_verificar_balance = QPushButton("Verificar Balance", self)
+        btn_verificar_balance.clicked.connect(self.verificar_balance)
+        barra_lateral.addWidget(btn_verificar_balance)
+
+        btn_generar_pdf = QPushButton("Generar PDF", self)
+        btn_generar_pdf.clicked.connect(self.generar_pdf)
+        barra_lateral.addWidget(btn_generar_pdf)
+
+        # Espaciador para empujar los botones hacia arriba
+        barra_lateral.addStretch()
+
+        # Crear un área principal con un QStackedWidget para mostrar contenido dinámico
+        self.area_principal = QStackedWidget()
+
+        # Agregar la barra lateral y el área principal al layout principal
+        layout_principal.addLayout(barra_lateral, 1)  # Barra lateral ocupa 1 parte
+        layout_principal.addWidget(self.area_principal, 4)  # Área principal ocupa 4 partes
+
+        # Configurar el contenedor principal
+        contenedor_principal.setLayout(layout_principal)
+        self.setCentralWidget(contenedor_principal)
+
+    def abrir_formulario_transaccion(self):
+        # Limpiar el área principal eliminando widgets existentes
+        while self.area_principal.count():
+            widget = self.area_principal.widget(0)
+            self.area_principal.removeWidget(widget)
+            widget.deleteLater()
+
+        # Crear el formulario de transacción
+        formulario = QWidget()
+        layout = QVBoxLayout()
+
         self.campos_debe = []
         self.campos_haber = []
 
-        self.input_fecha = QDateEdit(self.formulario)
+        self.input_fecha = QDateEdit()
         self.input_fecha.setDate(QDate.currentDate())
         self.input_fecha.setCalendarPopup(True)
         self.input_fecha.setDisplayFormat("yyyy-MM-dd")
@@ -140,18 +137,20 @@ class VentanaPrincipal(QMainWindow):
         btn_agregar_haber.clicked.connect(self.agregar_campo_haber)
         layout.addWidget(btn_agregar_haber)
 
-        self.input_descripcion = QLineEdit(self.formulario)
+        self.input_descripcion = QLineEdit()
         self.input_descripcion.setPlaceholderText("Descripción")
         layout.addWidget(self.input_descripcion)
 
-        btn_guardar = QPushButton("Guardar Transacción", self.formulario)
+        btn_guardar = QPushButton("Guardar Transacción")
         btn_guardar.clicked.connect(self.guardar_transaccion)
         layout.addWidget(btn_guardar)
 
-        self.formulario.setLayout(layout)
-        self.formulario.exec_()
+        formulario.setLayout(layout)
+        self.area_principal.addWidget(formulario)
+        self.area_principal.setCurrentWidget(formulario)
 
     def agregar_campo_debe(self):
+        """Agrega un campo de cuenta y monto para el Debe."""
         layout = QHBoxLayout()
         cuenta = QLineEdit()
         cuenta.setPlaceholderText("Cuenta (Debe)")
@@ -163,6 +162,7 @@ class VentanaPrincipal(QMainWindow):
         self.seccion_debe.addLayout(layout)
 
     def agregar_campo_haber(self):
+        """Agrega un campo de cuenta y monto para el Haber."""
         layout = QHBoxLayout()
         cuenta = QLineEdit()
         cuenta.setPlaceholderText("Cuenta (Haber)")
@@ -174,6 +174,7 @@ class VentanaPrincipal(QMainWindow):
         self.seccion_haber.addLayout(layout)
 
     def guardar_transaccion(self):
+        """Guarda la transacción en la base de datos."""
         try:
             fecha = self.input_fecha.date().toString("yyyy-MM-dd")
             cuentas_debe = [campo[0].text() for campo in self.campos_debe if campo[0].text()]
@@ -183,32 +184,131 @@ class VentanaPrincipal(QMainWindow):
             descripcion = self.input_descripcion.text()
 
             if registrar_transaccion(fecha, cuentas_debe, montos_debe, cuentas_haber, montos_haber, descripcion):
-                QMessageBox.information(self.formulario, "Éxito", "Transacción registrada con éxito.")
-                self.formulario.close()
+                QMessageBox.information(self, "Éxito", "Transacción registrada con éxito.")
+                self.abrir_formulario_transaccion()  # Limpiar el formulario
             else:
-                QMessageBox.warning(self.formulario, "Error", "Los montos de Debe y Haber no coinciden.")
+                QMessageBox.warning(self, "Error", "Los montos de Debe y Haber no coinciden.")
         except ValueError:
-            QMessageBox.warning(self.formulario, "Error", "Debe ingresar valores numéricos válidos.")
+            QMessageBox.warning(self, "Error", "Debe ingresar valores numéricos válidos.")
 
     def ver_libro_diario(self):
+        # Limpiar el área principal eliminando widgets existentes
+        while self.area_principal.count():
+            widget = self.area_principal.widget(0)
+            self.area_principal.removeWidget(widget)
+            widget.deleteLater()
+
+        # Obtener el libro diario
         libro_diario = obtener_libro_diario()
-        texto = "\n".join(
-            f"{t['fecha']} | Debe: {', '.join(t['cuentas_debe'])} ({sum(t['montos_debe'])}) | "
-            f"Haber: {', '.join(t['cuentas_haber'])} ({sum(t['montos_haber'])}) | {t['descripcion']}"
-            for t in libro_diario
-        )
-        QMessageBox.information(self, "Libro Diario", texto or "No hay transacciones registradas.")
+
+        # Crear la tabla para mostrar el libro diario
+        tabla = QTableWidget()
+        tabla.setColumnCount(5)  # Fecha, Concepto, Debe, Haber, Descripción
+        tabla.setHorizontalHeaderLabels(["Fecha", "Concepto", "Debe", "Haber", "Descripción"])
+        tabla.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+
+        # Estilos para la tabla (manteniendo el estilo anterior)
+        tabla.setStyleSheet("""
+            QTableWidget {
+                font-size: 14px;
+                border: 1px solid #ddd;
+            }
+            QHeaderView::section {
+                background-color: #0066cc;  /* Azul */
+                color: white;
+                padding: 8px;
+                font-weight: bold;
+            }
+            QTableWidget::item {
+                padding: 8px;
+            }
+        """)
+
+        # Llenar la tabla con los datos del libro diario
+        for transaccion in libro_diario:
+            fecha = transaccion["fecha"]
+            descripcion = transaccion["descripcion"]
+            cuentas_debe = transaccion["cuentas_debe"]
+            montos_debe = transaccion["montos_debe"]
+            cuentas_haber = transaccion["cuentas_haber"]
+            montos_haber = transaccion["montos_haber"]
+
+            # Agregar filas para las cuentas Debe
+            for cuenta, monto in zip(cuentas_debe, montos_debe):
+                fila = tabla.rowCount()
+                tabla.insertRow(fila)
+                tabla.setItem(fila, 0, QTableWidgetItem(fecha))
+                tabla.setItem(fila, 1, QTableWidgetItem(cuenta))
+                tabla.setItem(fila, 2, QTableWidgetItem(f"{monto:.2f}"))
+                tabla.setItem(fila, 3, QTableWidgetItem(""))  # Haber en blanco
+                tabla.setItem(fila, 4, QTableWidgetItem(descripcion))
+
+            # Agregar filas para las cuentas Haber
+            for cuenta, monto in zip(cuentas_haber, montos_haber):
+                fila = tabla.rowCount()
+                tabla.insertRow(fila)
+                tabla.setItem(fila, 0, QTableWidgetItem(fecha))
+                tabla.setItem(fila, 1, QTableWidgetItem(cuenta))
+                tabla.setItem(fila, 2, QTableWidgetItem(""))  # Debe en blanco
+                tabla.setItem(fila, 3, QTableWidgetItem(f"{monto:.2f}"))
+                tabla.setItem(fila, 4, QTableWidgetItem(descripcion))
+
+        # Ajustar el tamaño de las filas y columnas
+        tabla.resizeRowsToContents()
+        tabla.resizeColumnsToContents()
+
+        # Agregar la tabla al área principal
+        self.area_principal.addWidget(tabla)
+        self.area_principal.setCurrentWidget(tabla)
+
+    def ver_libro_mayor(self):
+        # Limpiar el área principal eliminando widgets existentes
+        while self.area_principal.count():
+            widget = self.area_principal.widget(0)
+            self.area_principal.removeWidget(widget)
+            widget.deleteLater()
+
+        # Obtener el libro mayor
+        libro_mayor = obtener_libro_mayor()
+
+        # Crear la tabla para mostrar el libro mayor
+        tabla = QTableWidget()
+        tabla.setColumnCount(2)  # Cuenta, Saldo
+        tabla.setHorizontalHeaderLabels(["Cuenta", "Saldo"])
+        tabla.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+
+        # Llenar la tabla con los datos del libro mayor
+        tabla.setRowCount(len(libro_mayor))
+        for i, cuenta in enumerate(libro_mayor):
+            tabla.setItem(i, 0, QTableWidgetItem(cuenta["cuenta"]))
+            tabla.setItem(i, 1, QTableWidgetItem(str(cuenta["saldo"])))
+
+        # Agregar la tabla al área principal
+        self.area_principal.addWidget(tabla)
+        self.area_principal.setCurrentWidget(tabla)
 
     def verificar_balance(self):
+        # Limpiar el área principal eliminando widgets existentes
+        while self.area_principal.count():
+            widget = self.area_principal.widget(0)
+            self.area_principal.removeWidget(widget)
+            widget.deleteLater()
+
+        # Mostrar el balance en el área principal
         balance = verificar_balance()
         texto = (
             f"Total Debe: {balance['total_debe']}\n"
             f"Total Haber: {balance['total_haber']}\n\n"
         )
         texto += "El balance está equilibrado." if balance["equilibrado"] else "El balance no está equilibrado."
-        QMessageBox.information(self, "Verificar Balance", texto)
+
+        etiqueta = QLabel(texto)
+        etiqueta.setWordWrap(True)
+        self.area_principal.addWidget(etiqueta)
+        self.area_principal.setCurrentWidget(etiqueta)
 
     def generar_pdf(self):
+        # Lógica para generar el PDF (igual que antes)
         nombre_empresa, ok = QInputDialog.getText(self, "Nombre de la Empresa", "Ingrese el nombre de la empresa:")
         if not ok or not nombre_empresa:
             QMessageBox.warning(self, "Error", "Debe ingresar el nombre de la empresa.")
