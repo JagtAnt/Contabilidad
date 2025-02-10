@@ -1,7 +1,7 @@
-#inicializar.db.py
 import sqlite3
 
 DB_PATH = "contabilidad.db"
+
 def inicializar_base_datos():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -41,4 +41,4 @@ def inicializar_base_datos():
 
 if __name__ == "__main__":
     inicializar_base_datos()
-    
+

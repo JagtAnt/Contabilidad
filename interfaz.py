@@ -6,9 +6,9 @@ from PyQt5.QtCore import QDate
 from PyQt5.QtGui import QFont
 from logica import (
     registrar_transaccion, obtener_libro_diario, verificar_balance,
-    inicializar_base_datos, obtener_libro_mayor, generar_pdf_libro_diario
+    inicializar_base_datos, obtener_libro_mayor, generar_pdf_libro_diario,
+    generar_pdf_libro_mayor
 )
-
 
 class VentanaPrincipal(QMainWindow):
     def __init__(self):
@@ -66,6 +66,10 @@ class VentanaPrincipal(QMainWindow):
         btn_generar_pdf = QPushButton("Generar PDF (Libro diario)", self)
         btn_generar_pdf.clicked.connect(self.generar_pdf)
         layout.addWidget(btn_generar_pdf)
+
+        btn_generar_pdf_mayor = QPushButton("Generar PDF (Libro Mayor)", self)
+        btn_generar_pdf_mayor.clicked.connect(self.generar_pdf_libro_mayor)
+        layout.addWidget(btn_generar_pdf_mayor)
 
         contenedor.setLayout(layout)
         self.setCentralWidget(contenedor)
@@ -269,6 +273,26 @@ class VentanaPrincipal(QMainWindow):
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"No se pudo generar el PDF: {str(e)}")
 
+    def generar_pdf_libro_mayor(self):
+        nombre_empresa, ok = QInputDialog.getText(self, "Nombre de la Empresa", "Ingrese el nombre de la empresa:")
+        if not ok or not nombre_empresa:
+            QMessageBox.warning(self, "Error", "Debe ingresar el nombre de la empresa.")
+            return
+
+        tasa_dolar, ok = QInputDialog.getDouble(
+            self, "Tipo de Cambio", 
+            "Ingrese el valor de 1 USD en Bs:",
+            min=0.01, max=100000, decimals=2
+        )
+        if not ok or tasa_dolar <= 0:
+            QMessageBox.warning(self, "Error", "Debe ingresar un tipo de cambio válido.")
+            return
+
+        try:
+            pdf_path = generar_pdf_libro_mayor(nombre_empresa, tasa_dolar)
+            QMessageBox.information(self, "Éxito", f"PDF del Libro Mayor generado correctamente: {pdf_path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudo generar el PDF: {str(e)}")
 
 def iniciar_interfaz():
     """

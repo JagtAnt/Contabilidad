@@ -1,9 +1,9 @@
 import sqlite3
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle  # Se añade ParagraphStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.enums import TA_CENTER, TA_LEFT  # Se importan ambas constantes de alineación
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from datetime import datetime
 
 DB_PATH = "contabilidad.db"
@@ -57,7 +57,6 @@ def inicializar_base_datos():
     conn.commit()
     conn.close()
 
-
 def obtener_numero_referencia(cuenta, conn=None):
     """
     Obtiene el número de referencia único para una cuenta.
@@ -83,8 +82,8 @@ def obtener_numero_referencia(cuenta, conn=None):
         cursor.execute("""
             SELECT MAX(numero_referencia) FROM referencias_cuentas
         """)
-        ultimo_numero = cursor.fetchone()[0] or 0
-        numero_referencia = ultimo_numero + 1
+        ultimo_num = cursor.fetchone()[0] or 0
+        numero_referencia = ultimo_num + 1
 
         # Asignar el nuevo número de referencia a la cuenta
         cursor.execute("""
@@ -98,7 +97,6 @@ def obtener_numero_referencia(cuenta, conn=None):
         conn.close()
 
     return numero_referencia
-
 
 def registrar_transaccion(fecha, cuentas_debe, montos_debe, cuentas_haber, montos_haber, descripcion):
     """
@@ -180,7 +178,6 @@ def registrar_transaccion(fecha, cuentas_debe, montos_debe, cuentas_haber, monto
     conn.close()
     return True
 
-
 def obtener_libro_diario(fecha_inicio=None, fecha_fin=None):
     """
     Retorna todas las transacciones registradas en la base de datos dentro de un rango de fechas.
@@ -233,7 +230,6 @@ def obtener_libro_diario(fecha_inicio=None, fecha_fin=None):
     conn.close()
     return libro_diario
 
-
 def verificar_balance():
     """
     Verifica si el libro diario está equilibrado.
@@ -258,7 +254,6 @@ def verificar_balance():
         "equilibrado": total_debe == total_haber,
     }
 
-
 def obtener_libro_mayor():
     """
     Obtiene las cuentas y los saldos registrados en el libro mayor desde la base de datos.
@@ -273,7 +268,6 @@ def obtener_libro_mayor():
 
     conn.close()
     return [{'cuenta': cuenta, 'saldo': saldo} for cuenta, saldo in cuentas]
-
 
 def generar_pdf_libro_diario(nombre_empresa, libro_diario, tasa_dolar, fecha_inicio, fecha_fin):
     """
@@ -392,3 +386,112 @@ def generar_pdf_libro_diario(nombre_empresa, libro_diario, tasa_dolar, fecha_ini
         return pdf_path
     except Exception as e:
         raise Exception(f"No se pudo generar el PDF: {str(e)}")
+
+def generar_pdf_libro_mayor(nombre_empresa, tasa_dolar):
+    """
+    Genera un PDF del Libro Mayor mostrando los movimientos de cada cuenta en una tabla con las columnas:
+      Fecha | Concepto | N° Ref | Debe | Haber | Saldo
+    Los movimientos se ordenan cronológicamente y se calcula el saldo acumulado.
+    """
+    try:
+        pdf_path = "libro_mayor.pdf"
+        doc = SimpleDocTemplate(pdf_path, pagesize=letter)
+        elements = []
+        styles = getSampleStyleSheet()
+        header_style = ParagraphStyle("header_style", parent=styles["Normal"], alignment=TA_LEFT)
+        table_header_style = ParagraphStyle("table_header_style", parent=styles["Normal"],
+                                            alignment=TA_CENTER, fontName="Helvetica-Bold")
+        # Estilo para el contenido de la columna "Concepto" con ajuste de línea
+        concept_style = ParagraphStyle("concept_style", parent=styles["Normal"],
+                                       alignment=TA_LEFT, wordWrap='CJK')
+        
+        # Fecha y encabezado principal
+        fecha_emision = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        header_text = (
+            f"<b>Nombre de la Empresa:</b> {nombre_empresa}<br/>"
+            f"<b>Tipo de Cambio:</b> 1 USD = {tasa_dolar} Bs<br/>"
+            f"<b>Fecha de Emisión:</b> {fecha_emision}<br/>"
+            f"<b>Libro Mayor - Movimientos</b>"
+        )
+        elements.append(Paragraph(header_text, header_style))
+        elements.append(Spacer(1, 12))
+        
+        # Conexión a la base de datos y obtención de las cuentas en el libro mayor
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT cuenta, saldo FROM libro_mayor")
+        cuentas = cursor.fetchall()
+        
+        # Para cada cuenta se generan los movimientos en una tabla ordenada por fecha
+        for cuenta, saldo in cuentas:
+            # Agregar un encabezado para la cuenta
+            elements.append(Paragraph(f"<b>Cuenta: {cuenta}</b>", header_style))
+            elements.append(Spacer(1, 6))
+            
+            # Cabecera de la tabla: Fecha, Concepto, N° Ref, Debe, Haber, Saldo
+            data = []
+            data.append([
+                Paragraph("<b>Fecha</b>", table_header_style),
+                Paragraph("<b>Concepto</b>", table_header_style),
+                Paragraph("<b>N° Ref</b>", table_header_style),
+                Paragraph("<b>Debe</b>", table_header_style),
+                Paragraph("<b>Haber</b>", table_header_style),
+                Paragraph("<b>Saldo</b>", table_header_style)
+            ])
+            
+            # Consultar los movimientos para la cuenta (unir con transacciones para obtener fecha y descripción)
+            cursor.execute("""
+                SELECT t.fecha, t.descripcion, dt.monto, dt.tipo
+                FROM detalles_transacciones dt
+                JOIN transacciones t ON dt.transaccion_id = t.id
+                WHERE dt.cuenta = ?
+                ORDER BY t.fecha, dt.id
+            """, (cuenta,))
+            movimientos = cursor.fetchall()
+            
+            running_balance = 0.0
+            ref = obtener_numero_referencia(cuenta)  # Número de referencia de la cuenta
+            
+            # Recorrer cada movimiento y calcular el saldo acumulado
+            for mov in movimientos:
+                fecha_mov, concepto, monto, tipo = mov
+                if tipo == "Debe":
+                    debe = monto
+                    haber = ""
+                    running_balance += monto
+                else:
+                    debe = ""
+                    haber = monto
+                    running_balance -= monto
+                
+                debe_str = f"Bs {debe:.2f}" if debe != "" else ""
+                haber_str = f"Bs {haber:.2f}" if haber != "" else ""
+                saldo_str = f"Bs {running_balance:.2f}"
+                
+                data.append([
+                    Paragraph(fecha_mov, styles["Normal"]),
+                    Paragraph(concepto, concept_style),
+                    Paragraph(str(ref), styles["Normal"]),
+                    Paragraph(debe_str, styles["Normal"]),
+                    Paragraph(haber_str, styles["Normal"]),
+                    Paragraph(saldo_str, styles["Normal"])
+                ])
+            
+            # Crear la tabla con anchos fijos para cada columna
+            table_mov = Table(data, colWidths=[70, 150, 50, 70, 70, 70])
+            table_mov.setStyle(TableStyle([
+                ("BOX", (0,0), (-1,-1), 1, colors.black),
+                ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
+                ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
+                ("ALIGN", (0,0), (-1,-1), "CENTER"),
+                ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+                ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+            ]))
+            elements.append(table_mov)
+            elements.append(Spacer(1, 24))
+        
+        conn.close()
+        doc.build(elements)
+        return pdf_path
+    except Exception as e:
+        raise Exception(f"No se pudo generar el PDF del Libro Mayor: {str(e)}")
