@@ -583,7 +583,18 @@ def generar_pdf_balance_sumasy_saldos(nombre_empresa, tasa_dolar, fecha_inicio, 
                 f"Bs {registro['saldo_deudor']:.2f}" if registro["saldo_deudor"] > 0 else "-",
                 f"Bs {registro['saldo_acreedor']:.2f}" if registro["saldo_acreedor"] > 0 else "-"
             ])
+        total_debe = sum(registro["debe"] for registro in balances)
+        total_haber = sum(registro["haber"] for registro in balances)
+        total_saldo_deudor = sum(registro["saldo_deudor"] for registro in balances)
+        total_saldo_acreedor = sum(registro["saldo_acreedor"] for registro in balances)
 
+        data.append([
+            "Total",
+            f"Bs {total_debe:.2f}",
+            f"Bs {total_haber:.2f}",
+            f"Bs {total_saldo_deudor:.2f}" if total_saldo_deudor > 0 else "-",
+            f"Bs {total_saldo_acreedor:.2f}" if total_saldo_acreedor > 0 else "-"
+        ])
         # Crear la tabla con anchos personalizados
         table = Table(data, colWidths=[200, 80, 80, 100, 100])
         table.setStyle(TableStyle([
