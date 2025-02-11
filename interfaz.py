@@ -3,11 +3,11 @@ from PyQt5.QtWidgets import (
     QLineEdit, QDialog, QMessageBox, QLabel, QHBoxLayout, QDateEdit, 
     QInputDialog, QStackedWidget, QTableWidget, QTableWidgetItem, QHeaderView
 )
-from PyQt5.QtCore import QDate
-from PyQt5.QtGui import QFont
+from PyQt5.QtCore import QDate, Qt
+from PyQt5.QtGui import QFont, QIcon, QPixmap
 from logica import (
     registrar_transaccion, obtener_libro_diario, verificar_balance,
-    inicializar_base_datos, obtener_libro_mayor, generar_pdf_libro_diario, generar_pdf_balance_saldos, borrar_transacciones
+    inicializar_base_datos, obtener_libro_mayor, generar_pdf_libro_diario, generar_pdf_libro_mayor, generar_pdf_balance_saldos, borrar_transacciones
 )
 
 
@@ -16,6 +16,7 @@ class VentanaPrincipal(QMainWindow):
         super().__init__()
         self.setWindowTitle("Sistema de Contabilidad")
         self.setGeometry(100, 100, 800, 600)
+        self.setWindowIcon(QIcon('imagen/icono.png'))
 
         # Estilos CSS para la interfaz
         self.setStyleSheet("""
@@ -54,6 +55,7 @@ class VentanaPrincipal(QMainWindow):
                 padding: 8px;
                 font-weight: bold;
             }
+                       
         """)
 
         # Crear un contenedor principal con diseño horizontal
@@ -62,6 +64,12 @@ class VentanaPrincipal(QMainWindow):
 
         # Crear la barra lateral
         barra_lateral = QVBoxLayout()
+
+        imagen_label = QLabel(self)
+        pixmap = QPixmap('imagen/imagen.jpg').scaled(100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        imagen_label.setPixmap(pixmap)
+        imagen_label.setAlignment(Qt.AlignCenter)
+        barra_lateral.addWidget(imagen_label)
 
         # Botones de la barra lateral
         btn_registrar_transaccion = QPushButton("Registrar Transacción", self)
@@ -76,12 +84,8 @@ class VentanaPrincipal(QMainWindow):
         btn_ver_libro_mayor.clicked.connect(self.ver_libro_mayor)
         barra_lateral.addWidget(btn_ver_libro_mayor)
 
-        btn_verificar_balance = QPushButton("Verificar Balance", self)
-        btn_verificar_balance.clicked.connect(self.verificar_balance)
-        barra_lateral.addWidget(btn_verificar_balance)
-
-        btn_generar_pdf = QPushButton("Generar Libro Diario y Mayor", self)
-        btn_generar_pdf.clicked.connect(self.generar_pdf)
+        btn_generar_pdf = QPushButton("Generar PDF", self)
+        btn_generar_pdf.clicked.connect(self.abrir_ventana_generar_pdf)
         barra_lateral.addWidget(btn_generar_pdf)
 
         # Nuevo botón para generar el balance de saldos
@@ -316,9 +320,67 @@ class VentanaPrincipal(QMainWindow):
         etiqueta.setWordWrap(True)
         self.area_principal.addWidget(etiqueta)
         self.area_principal.setCurrentWidget(etiqueta)
+ 
 
-    def generar_pdf(self):
-        # Lógica para generar el PDF (igual que antes)
+    def abrir_ventana_generar_pdf(self):
+        """
+        Abre una ventana emergente con dos opciones: PDF Libro Mayor y PDF Libro Diario.
+        """
+        ventana_opciones = QDialog(self)
+        ventana_opciones.setWindowTitle("Generar PDF")
+        layout_opciones = QVBoxLayout()
+
+        # Botón para generar PDF del Libro Mayor
+        btn_pdf_libro_mayor = QPushButton("PDF Libro Mayor", ventana_opciones)
+        btn_pdf_libro_mayor.clicked.connect(lambda: self.generar_pdf_libro_mayor(ventana_opciones))
+        layout_opciones.addWidget(btn_pdf_libro_mayor)
+
+        # Botón para generar PDF del Libro Diario
+        btn_pdf_libro_diario = QPushButton("PDF Libro Diario", ventana_opciones)
+        btn_pdf_libro_diario.clicked.connect(lambda: self.generar_pdf_libro_diario(ventana_opciones))
+        layout_opciones.addWidget(btn_pdf_libro_diario)
+
+        ventana_opciones.setLayout(layout_opciones)
+        ventana_opciones.exec_()
+
+    def generar_pdf_libro_mayor(self, ventana_opciones):
+        """
+        Genera el PDF del libro mayor.
+        """
+        ventana_opciones.close()  # Cerrar la ventana de opciones
+
+        nombre_empresa, ok = QInputDialog.getText(self, "Nombre de la Empresa", "Ingrese el nombre de la empresa:")
+        if not ok or not nombre_empresa:
+            QMessageBox.warning(self, "Error", "Debe ingresar el nombre de la empresa.")
+            return
+
+        tasa_dolar, ok = QInputDialog.getDouble(
+            self, "Tipo de Cambio", 
+            "Ingrese el valor de 1 USD en Bs:",
+            min=0.01, max=100000, decimals=2
+        )
+        if not ok or tasa_dolar <= 0:
+            QMessageBox.warning(self, "Error", "Debe ingresar un tipo de cambio válido.")
+            return
+
+        # Obtener la fecha de emisión
+        fecha_emision = QDate.currentDate().toString("yyyy-MM-dd")
+
+        # Obtener el libro mayor
+        libro_mayor = obtener_libro_mayor()
+
+        try:
+            pdf_path = generar_pdf_libro_mayor(nombre_empresa, libro_mayor, tasa_dolar, fecha_emision)
+            QMessageBox.information(self, "Éxito", f"PDF generado correctamente: {pdf_path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudo generar el PDF: {str(e)}")
+
+    def generar_pdf_libro_diario(self, ventana_opciones):
+        """
+        Genera el PDF del libro diario.
+        """
+        ventana_opciones.close()  # Cerrar la ventana de opciones
+
         nombre_empresa, ok = QInputDialog.getText(self, "Nombre de la Empresa", "Ingrese el nombre de la empresa:")
         if not ok or not nombre_empresa:
             QMessageBox.warning(self, "Error", "Debe ingresar el nombre de la empresa.")
@@ -378,7 +440,7 @@ class VentanaPrincipal(QMainWindow):
                 QMessageBox.information(self, "Éxito", f"PDF generado correctamente: {pdf_path}")
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"No se pudo generar el PDF: {str(e)}")
-
+    
     def generar_balance_saldos(self):
         """Genera un PDF con el balance de saldos."""
         nombre_empresa, ok = QInputDialog.getText(self, "Nombre de la Empresa", "Ingrese el nombre de la empresa:")
@@ -453,7 +515,7 @@ class VentanaPrincipal(QMainWindow):
                     QMessageBox.warning(self, "Error", "No se pudieron borrar las transacciones.")
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"No se pudieron borrar las transacciones: {str(e)}")
-
+       
 
 def iniciar_interfaz():
     """
