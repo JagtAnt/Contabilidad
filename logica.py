@@ -470,9 +470,9 @@ def generar_pdf_libro_mayor(nombre_empresa, libro_mayor, tasa_dolar, fecha_emisi
                     haber = monto
                     running_balance -= monto
                 
-                debe_str = f" {debe:.2f}" if debe != "" else ""
-                haber_str = f" {haber:.2f}" if haber != "" else ""
-                saldo_str = f" {running_balance:.2f}"
+                debe_str = f"Bs {debe:.2f}" if debe != "" else ""
+                haber_str = f"Bs {haber:.2f}" if haber != "" else ""
+                saldo_str = f"Bs {running_balance:.2f}"
                 
                 data.append([
                     Paragraph(fecha_mov, styles["Normal"]),
@@ -502,22 +502,60 @@ def generar_pdf_libro_mayor(nombre_empresa, libro_mayor, tasa_dolar, fecha_emisi
     except Exception as e:
         raise Exception(f"No se pudo generar el PDF del Libro Mayor: {str(e)}")
 
-def generar_pdf_balance_saldos(nombre_empresa, tasa_dolar, fecha_inicio, fecha_fin):
+def obtener_balance_sumasy_saldos():
     """
-    Genera un PDF con el balance de saldos, mostrando montos en Bs y USD,
-    e incluye en el encabezado: nombre de empresa, tipo de cambio,
-    período de fechas y la fecha de emisión.
+    Obtiene el balance de sumas y saldos por cuenta, calculando:
+      - Total en Debe
+      - Total en Haber
+      - Saldo Deudor (si Debe > Haber)
+      - Saldo Acreedor (si Haber > Debe)
+    """
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT cuenta,
+               SUM(CASE WHEN tipo = 'Debe' THEN monto ELSE 0 END) AS total_debe,
+               SUM(CASE WHEN tipo = 'Haber' THEN monto ELSE 0 END) AS total_haber
+        FROM detalles_transacciones
+        GROUP BY cuenta
+    """)
+    resultados = cursor.fetchall()
+    conn.close()
+
+    balances = []
+    for cuenta, total_debe, total_haber in resultados:
+        saldo_deudor = total_debe - total_haber if total_debe > total_haber else 0
+        saldo_acreedor = total_haber - total_debe if total_haber > total_debe else 0
+        balances.append({
+            "cuenta": cuenta,
+            "debe": total_debe,
+            "haber": total_haber,
+            "saldo_deudor": saldo_deudor,
+            "saldo_acreedor": saldo_acreedor
+        })
+    return balances
+
+
+def generar_pdf_balance_sumasy_saldos(nombre_empresa, tasa_dolar, fecha_inicio, fecha_fin):
+    """
+    Genera un PDF con el balance de sumas y saldos, mostrando montos en Bs y USD.
+    Incluye en el encabezado: nombre de la empresa, tipo de cambio, período y fecha de emisión.
+    
+    La tabla resultante contiene las siguientes columnas:
+      - Cuenta
+      - Debe (Bs)
+      - Haber (Bs)
+      - Saldo Deudor (Bs)
+      - Saldo Acreedor (Bs)
     """
     try:
-        pdf_path = "balance_saldos.pdf"
+        pdf_path = "balance_sumasy_saldos.pdf"
         doc = SimpleDocTemplate(pdf_path, pagesize=letter)
         elements = []
 
         # Estilos base
         styles = getSampleStyleSheet()
-        header_style = ParagraphStyle("header_style",
-                                      parent=styles["Normal"],
-                                      alignment=TA_LEFT)
+        header_style = ParagraphStyle("header_style", parent=styles["Normal"], alignment=TA_LEFT)
 
         # Obtener la fecha y hora de emisión
         fecha_emision = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -532,24 +570,22 @@ def generar_pdf_balance_saldos(nombre_empresa, tasa_dolar, fecha_inicio, fecha_f
         elements.append(Paragraph(header_text, header_style))
         elements.append(Spacer(1, 12))
 
-        # Obtener el balance de saldos desde la base de datos
-        libro_mayor = obtener_libro_mayor()
+        # Obtener el balance de sumas y saldos
+        balances = obtener_balance_sumasy_saldos()
 
-        # Creación de la tabla (cuadro) para el balance de saldos
-        data = [["Cuenta", "Saldo (Bs)", "Saldo (USD)"]]
-        for cuenta in libro_mayor:
-            nombre_cuenta = cuenta["cuenta"]
-            saldo_bs = cuenta["saldo"]
-            saldo_usd = saldo_bs / tasa_dolar if tasa_dolar != 0 else 0
-
+        # Preparar los datos para la tabla
+        data = [["Cuenta", "Debe (Bs)", "Haber (Bs)", "Saldo Deudor (Bs)", "Saldo Acreedor (Bs)"]]
+        for registro in balances:
             data.append([
-                nombre_cuenta,
-                f"Bs {saldo_bs:.2f}",
-                f"USD {saldo_usd:.2f}"
+                registro["cuenta"],
+                f"Bs {registro['debe']:.2f}",
+                f"Bs {registro['haber']:.2f}",
+                f"Bs {registro['saldo_deudor']:.2f}" if registro["saldo_deudor"] > 0 else "-",
+                f"Bs {registro['saldo_acreedor']:.2f}" if registro["saldo_acreedor"] > 0 else "-"
             ])
 
         # Crear la tabla con anchos personalizados
-        table = Table(data, colWidths=[200, 100, 100])
+        table = Table(data, colWidths=[200, 80, 80, 100, 100])
         table.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
@@ -560,8 +596,8 @@ def generar_pdf_balance_saldos(nombre_empresa, tasa_dolar, fecha_inicio, fecha_f
             ("GRID", (0, 0), (-1, -1), 1, colors.black),
         ]))
         elements.append(table)
-        doc.build(elements)
 
+        doc.build(elements)
         return pdf_path
     except Exception as e:
         raise Exception(f"No se pudo generar el PDF: {str(e)}")

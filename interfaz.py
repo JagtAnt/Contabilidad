@@ -7,7 +7,7 @@ from PyQt5.QtCore import QDate, Qt
 from PyQt5.QtGui import QFont, QIcon, QPixmap
 from logica import (
     registrar_transaccion, obtener_libro_diario, verificar_balance,
-    inicializar_base_datos, obtener_libro_mayor, generar_pdf_libro_diario, generar_pdf_libro_mayor, generar_pdf_balance_saldos,
+    inicializar_base_datos, obtener_libro_mayor, generar_pdf_libro_diario, generar_pdf_libro_mayor, generar_pdf_balance_sumasy_saldos
 )
 
 
@@ -90,7 +90,7 @@ class VentanaPrincipal(QMainWindow):
 
         # Nuevo botón para generar el balance de saldos
         btn_generar_balance_saldos = QPushButton("Generar Balance de Saldos", self)
-        btn_generar_balance_saldos.clicked.connect(self.generar_balance_saldos)
+        btn_generar_balance_saldos.clicked.connect(self.generar_pdf_balance_sumasy_saldos)
         barra_lateral.addWidget(btn_generar_balance_saldos)
 
         # Espaciador para empujar los botones hacia arriba
@@ -436,7 +436,7 @@ class VentanaPrincipal(QMainWindow):
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"No se pudo generar el PDF: {str(e)}")
     
-    def generar_balance_saldos(self):
+    def generar_pdf_balance_sumasy_saldos(self):
         """Genera un PDF con el balance de saldos."""
         nombre_empresa, ok = QInputDialog.getText(self, "Nombre de la Empresa", "Ingrese el nombre de la empresa:")
         if not ok or not nombre_empresa:
@@ -488,7 +488,7 @@ class VentanaPrincipal(QMainWindow):
                 return
 
             try:
-                pdf_path = generar_pdf_balance_saldos(nombre_empresa, tasa_dolar, fecha_inicio, fecha_fin)
+                pdf_path = generar_pdf_balance_sumasy_saldos(nombre_empresa, tasa_dolar, fecha_inicio, fecha_fin)
                 QMessageBox.information(self, "Éxito", f"PDF generado correctamente: {pdf_path}")
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"No se pudo generar el PDF: {str(e)}")
