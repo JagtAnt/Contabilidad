@@ -14,7 +14,7 @@ from logica import (
 class VentanaPrincipal(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Sistema de Contabilidad")
+        self.setWindowTitle("Financode")
         self.setGeometry(100, 100, 800, 600)
         self.setWindowIcon(QIcon('imagen/icono.png'))
 

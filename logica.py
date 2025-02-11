@@ -470,9 +470,9 @@ def generar_pdf_libro_mayor(nombre_empresa, libro_mayor, tasa_dolar, fecha_emisi
                     haber = monto
                     running_balance -= monto
                 
-                debe_str = f"Bs {debe:.2f}" if debe != "" else ""
-                haber_str = f"Bs {haber:.2f}" if haber != "" else ""
-                saldo_str = f"Bs {running_balance:.2f}"
+                debe_str = f" {debe:.2f}" if debe != "" else ""
+                haber_str = f" {haber:.2f}" if haber != "" else ""
+                saldo_str = f" {running_balance:.2f}"
                 
                 data.append([
                     Paragraph(fecha_mov, styles["Normal"]),
