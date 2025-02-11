@@ -7,7 +7,7 @@ from PyQt5.QtCore import QDate, Qt
 from PyQt5.QtGui import QFont, QIcon, QPixmap
 from logica import (
     registrar_transaccion, obtener_libro_diario, verificar_balance,
-    inicializar_base_datos, obtener_libro_mayor, generar_pdf_libro_diario
+    inicializar_base_datos, obtener_libro_mayor, generar_pdf_libro_diario, generar_pdf_libro_mayor
 )
 
 
@@ -89,7 +89,7 @@ class VentanaPrincipal(QMainWindow):
         barra_lateral.addWidget(btn_verificar_balance)
 
         btn_generar_pdf = QPushButton("Generar PDF", self)
-        btn_generar_pdf.clicked.connect(self.generar_pdf)
+        btn_generar_pdf.clicked.connect(self.abrir_ventana_generar_pdf)
         barra_lateral.addWidget(btn_generar_pdf)
 
         # Espaciador para empujar los botones hacia arriba
@@ -314,9 +314,67 @@ class VentanaPrincipal(QMainWindow):
         etiqueta.setWordWrap(True)
         self.area_principal.addWidget(etiqueta)
         self.area_principal.setCurrentWidget(etiqueta)
+ 
 
-    def generar_pdf(self):
-        # Lógica para generar el PDF (igual que antes)
+    def abrir_ventana_generar_pdf(self):
+        """
+        Abre una ventana emergente con dos opciones: PDF Libro Mayor y PDF Libro Diario.
+        """
+        ventana_opciones = QDialog(self)
+        ventana_opciones.setWindowTitle("Generar PDF")
+        layout_opciones = QVBoxLayout()
+
+        # Botón para generar PDF del Libro Mayor
+        btn_pdf_libro_mayor = QPushButton("PDF Libro Mayor", ventana_opciones)
+        btn_pdf_libro_mayor.clicked.connect(lambda: self.generar_pdf_libro_mayor(ventana_opciones))
+        layout_opciones.addWidget(btn_pdf_libro_mayor)
+
+        # Botón para generar PDF del Libro Diario
+        btn_pdf_libro_diario = QPushButton("PDF Libro Diario", ventana_opciones)
+        btn_pdf_libro_diario.clicked.connect(lambda: self.generar_pdf_libro_diario(ventana_opciones))
+        layout_opciones.addWidget(btn_pdf_libro_diario)
+
+        ventana_opciones.setLayout(layout_opciones)
+        ventana_opciones.exec_()
+
+    def generar_pdf_libro_mayor(self, ventana_opciones):
+        """
+        Genera el PDF del libro mayor.
+        """
+        ventana_opciones.close()  # Cerrar la ventana de opciones
+
+        nombre_empresa, ok = QInputDialog.getText(self, "Nombre de la Empresa", "Ingrese el nombre de la empresa:")
+        if not ok or not nombre_empresa:
+            QMessageBox.warning(self, "Error", "Debe ingresar el nombre de la empresa.")
+            return
+
+        tasa_dolar, ok = QInputDialog.getDouble(
+            self, "Tipo de Cambio", 
+            "Ingrese el valor de 1 USD en Bs:",
+            min=0.01, max=100000, decimals=2
+        )
+        if not ok or tasa_dolar <= 0:
+            QMessageBox.warning(self, "Error", "Debe ingresar un tipo de cambio válido.")
+            return
+
+        # Obtener la fecha de emisión
+        fecha_emision = QDate.currentDate().toString("yyyy-MM-dd")
+
+        # Obtener el libro mayor
+        libro_mayor = obtener_libro_mayor()
+
+        try:
+            pdf_path = generar_pdf_libro_mayor(nombre_empresa, libro_mayor, tasa_dolar, fecha_emision)
+            QMessageBox.information(self, "Éxito", f"PDF generado correctamente: {pdf_path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudo generar el PDF: {str(e)}")
+
+    def generar_pdf_libro_diario(self, ventana_opciones):
+        """
+        Genera el PDF del libro diario.
+        """
+        ventana_opciones.close()  # Cerrar la ventana de opciones
+
         nombre_empresa, ok = QInputDialog.getText(self, "Nombre de la Empresa", "Ingrese el nombre de la empresa:")
         if not ok or not nombre_empresa:
             QMessageBox.warning(self, "Error", "Debe ingresar el nombre de la empresa.")
@@ -376,7 +434,7 @@ class VentanaPrincipal(QMainWindow):
                 QMessageBox.information(self, "Éxito", f"PDF generado correctamente: {pdf_path}")
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"No se pudo generar el PDF: {str(e)}")
-
+       
 
 def iniciar_interfaz():
     """

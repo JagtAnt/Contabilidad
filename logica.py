@@ -387,7 +387,7 @@ def generar_pdf_libro_diario(nombre_empresa, libro_diario, tasa_dolar, fecha_ini
     except Exception as e:
         raise Exception(f"No se pudo generar el PDF: {str(e)}")
 
-def generar_pdf_libro_mayor(nombre_empresa, tasa_dolar):
+def generar_pdf_libro_mayor(nombre_empresa, libro_mayor, tasa_dolar, fecha_emision):
     """
     Genera un PDF del Libro Mayor mostrando los movimientos de cada cuenta en una tabla con las columnas:
       Fecha | Concepto | N° Ref | Debe | Haber | Saldo
