@@ -565,31 +565,3 @@ def generar_pdf_balance_saldos(nombre_empresa, tasa_dolar, fecha_inicio, fecha_f
         return pdf_path
     except Exception as e:
         raise Exception(f"No se pudo generar el PDF: {str(e)}")
-
-
-
-def borrar_transacciones():
-    """
-    Borra todas las transacciones y sus detalles de la base de datos.
-    También reinicia el libro mayor.
-    """
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-
-    try:
-        # Borrar todas las transacciones
-        cursor.execute("DELETE FROM transacciones")
-        # Borrar todos los detalles de las transacciones
-        cursor.execute("DELETE FROM detalles_transacciones")
-        # Reiniciar el libro mayor
-        cursor.execute("DELETE FROM libro_mayor")
-        # Reiniciar las referencias de cuentas (opcional, dependiendo de tu lógica)
-        cursor.execute("DELETE FROM referencias_cuentas")
-
-        conn.commit()
-        return True
-    except Exception as e:
-        conn.rollback()
-        raise Exception(f"No se pudieron borrar las transacciones: {str(e)}")
-    finally:
-        conn.close()
